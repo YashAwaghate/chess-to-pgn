@@ -19,7 +19,7 @@ def auto_canny(image, sigma=0.33):
     edged = cv2.Canny(image, lower, upper)
     return edged
 
-def preprocess_image(image_path, output_path=None, show=False):
+def preprocess_image(image_path, output_path=None, show=False, rotation=0):
     """
     Reads an image, detects the chess board, warps it to a 400x500 view 
     (shifted down to capture piece heads), and segments patches.
@@ -103,7 +103,7 @@ def preprocess_image(image_path, output_path=None, show=False):
     
     if output_path:
         cv2.imwrite(output_path, warped)
-        segment_board(warped, output_path)
+        segment_board(warped, output_path, rotation)
         print(f"Using method: {used_method}. Saved to {output_path}")
         
     return warped
@@ -162,17 +162,44 @@ def cluster_hough_lines(lines):
         return merged
     return merge_nearby(horizontals), merge_nearby(verticals)
 
-def segment_board(board_image, output_path):
+def segment_board(board_image, output_path, rotation=0):
     """Slices the grid into 64 patches, capturing piece height by looking upward."""
     base_dir = os.path.splitext(output_path)[0] + "_patches"
     if os.path.exists(base_dir): shutil.rmtree(base_dir) 
     os.makedirs(base_dir, exist_ok=True)
     
     internal_crop = 5 
-    files, ranks = "abcdefgh", "87654321"
+    
+    # Base logical files and ranks
+    files = "abcdefgh"
+    ranks = "87654321"
+    
+    # Adjust logical mapping based on rotation (0, 90, 180, 270 degrees clockwise)
+    # The physical patches extracted from top-left (i=0, j=0) to bottom-right (i=7, j=7)
+    # represent different logical squares depending on how the camera viewed the board.
+    # 0 deg (Standard): Top row is rank 8, Bottom is rank 1. Left is file 'a', Right is file 'h'.
     
     for i in range(8):
         for j in range(8):
+            # Calculate logical rank and file based on orientation
+            # Standard (0): i -> rank (0=8), j -> file (0=a)
+            # 180 rotated: board is viewed from Black's side. Top row is rank 1. Left is file 'h'.
+            # 90 rotated: board viewed from side.
+            if rotation == 0:
+                logical_file_idx, logical_rank_idx = j, i
+            elif rotation == 180:
+                logical_file_idx, logical_rank_idx = 7 - j, 7 - i
+            elif rotation == 90:
+                # View from left side (e.g. White is on the right)
+                logical_file_idx, logical_rank_idx = i, 7 - j
+            elif rotation == 270:
+                # View from right side (e.g. White is on the left)
+                logical_file_idx, logical_rank_idx = 7 - i, j
+            else:
+                logical_file_idx, logical_rank_idx = j, i
+                
+            square_name = f"{files[logical_file_idx]}{ranks[logical_rank_idx]}"
+
             # The board grid starts at BOARD_START_Y (100)
             y_base = BOARD_START_Y + (i * SQUARE_SIZE)
             y_end = BOARD_START_Y + ((i + 1) * SQUARE_SIZE)
@@ -192,8 +219,95 @@ def segment_board(board_image, output_path):
             normalized = cv2.normalize(cropped, None, 0, 255, cv2.NORM_MINMAX)
             final_patch = cv2.resize(normalized, (50, 50))
             
-            cv2.imwrite(os.path.join(base_dir, f"{files[j]}{ranks[i]}.jpg"), final_patch)
+            cv2.imwrite(os.path.join(base_dir, f"{square_name}.jpg"), final_patch)
     print(f"Segmented 64 full-height patches saved to {base_dir}")
+
+def determine_orientation(warped_board):
+    """
+    Analyzes the '00' setup image to determine rotation.
+    1. Piece density: White pieces in bottom ranks -> 0 or 90. Black pieces -> 180 or 270.
+    2. Square Parity: Bottom right square (h1) must be a physical light square.
+    """
+    if warped_board is None:
+        return 0
+        
+    # Analyze bottom two ranks (indices i=6,7, physical bottom)
+    # Get raw physical patches for these ranks to check piece density
+    bottom_ranks_intensity = 0
+    top_ranks_intensity = 0
+    
+    internal_crop = 5
+    for i in range(8):
+        for j in range(8):
+            y_base = BOARD_START_Y + (i * SQUARE_SIZE)
+            y_end = BOARD_START_Y + ((i + 1) * SQUARE_SIZE)
+            x_start = j * SQUARE_SIZE
+            x_end = (j + 1) * SQUARE_SIZE
+            y_ext = max(0, y_base - PIECE_HEAD_BUFFER)
+            patch = warped_board[y_ext:y_end, x_start:x_end]
+            hc, wc = patch.shape[:2]
+            cropped = patch[0:hc-internal_crop, internal_crop:wc-internal_crop]
+            
+            gray_patch = cv2.cvtColor(cropped, cv2.COLOR_BGR2GRAY)
+            # Estimate piece brightness (assuming pieces occupy center of patch)
+            # We can just take average pixel value. White pieces -> higher mean.
+            intensity = np.mean(gray_patch)
+            
+            if i >= 6: # Bottom 2 ranks
+                bottom_ranks_intensity += intensity
+            elif i <= 1: # Top 2 ranks
+                top_ranks_intensity += intensity
+
+    # If bottom ranks are brighter than top, White is at the bottom.
+    is_white_at_bottom = bottom_ranks_intensity > top_ranks_intensity
+    
+    # 2. Square Parity Verification. Physical bottom right is patch (i=7, j=7)
+    # Check if the empty space (corners of the patch) is light or dark.
+    y_base = BOARD_START_Y + (7 * SQUARE_SIZE)
+    y_end = BOARD_START_Y + ((8) * SQUARE_SIZE)
+    x_start = 7 * SQUARE_SIZE
+    x_end = 8 * SQUARE_SIZE
+    h1_patch = warped_board[y_base:y_end, x_start:x_end] # only the board square, not sky
+    gray_h1 = cv2.cvtColor(h1_patch, cv2.COLOR_BGR2GRAY)
+    
+    # Extract just the corners of the square to avoid piece interference
+    h, w = gray_h1.shape
+    c_size = 5
+    corners = np.concatenate([
+        gray_h1[0:c_size, 0:c_size].flatten(),
+        gray_h1[0:c_size, w-c_size:w].flatten(),
+        gray_h1[h-c_size:h, 0:c_size].flatten(),
+        gray_h1[h-c_size:h, w-c_size:w].flatten()
+    ])
+    
+    h1_brightness = np.median(corners)
+    # Estimate light vs dark square by thresholding (naive)
+    # A better way is comparing h1 (7,7) to g1 (7,6)
+    
+    y_base_g1 = BOARD_START_Y + (7 * SQUARE_SIZE)
+    y_end_g1 = BOARD_START_Y + ((8) * SQUARE_SIZE)
+    x_start_g1 = 6 * SQUARE_SIZE
+    x_end_g1 = 7 * SQUARE_SIZE
+    g1_patch = warped_board[y_base_g1:y_end_g1, x_start_g1:x_end_g1]
+    gray_g1 = cv2.cvtColor(g1_patch, cv2.COLOR_BGR2GRAY)
+    corners_g1 = np.concatenate([
+        gray_g1[0:c_size, 0:c_size].flatten(),
+        gray_g1[0:c_size, w-c_size:w].flatten(),
+        gray_g1[h-c_size:h, 0:c_size].flatten(),
+        gray_g1[h-c_size:h, w-c_size:w].flatten()
+    ])
+    g1_brightness = np.median(corners_g1)
+    
+    # h1 is typically a light square.
+    is_h1_light = h1_brightness > g1_brightness
+    
+    # Combine logic:
+    if is_white_at_bottom:
+        if is_h1_light: return 0
+        else: return 90 # Flipped sideways
+    else:
+        if is_h1_light: return 180
+        else: return 270
 
 def intersection(line1, line2):
     rho1, theta1 = line1

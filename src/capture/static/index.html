@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Session Manager</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-content">
+                <h1>Chess Session Manager</h1>
+                <div class="status-badge" id="app-status">CALIBRATING</div>
+            </div>
+        </header>
+
+        <main>
+            <div class="video-container">
+                <video id="webcam" autoplay playsinline></video>
+                <canvas id="overlay-canvas"></canvas>
+                <div class="controls-overlay" id="calibration-controls">
+                    <p>Click the 4 corners of the board (Top-Left, Top-Right, Bottom-Right, Bottom-Left)</p>
+                    <button id="btn-calibrate" class="btn primary" disabled>Calibrate Board</button>
+                    <button id="btn-clear" class="btn secondary">Clear Points</button>
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <div class="panel">
+                    <h2>Session Info</h2>
+                    <div class="info-row">
+                        <span class="label">Game ID:</span>
+                        <span class="value" id="info-game-id">--</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Captured Moves:</span>
+                        <span class="value" id="info-moves">0</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Orientation:</span>
+                        <span class="value" id="info-rotation">--&deg;</span>
+                    </div>
+                    <button id="btn-reset" class="btn danger full-width mt-1">Reset Session</button>
+                </div>
+
+                <div class="panel">
+                    <h2>Motion Mask Debug</h2>
+                    <div class="mask-container">
+                        <img id="debug-mask" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" alt="Motion Mask">
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
