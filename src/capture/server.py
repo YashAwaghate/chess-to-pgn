@@ -13,13 +13,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import sys
 
-# Add preprocessing path
+# Add capture path so hand_detector is importable from here
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(os.path.dirname(script_dir))
 sys.path.append(os.path.join(project_root, 'src', 'preprocessing'))
+sys.path.append(script_dir)
 from process_board import determine_orientation, CANVAS_HEIGHT, BOARD_START_Y
+from hand_detector import HandDetector
 
 app = FastAPI()
+
+# Single global HandDetector (MediaPipe model loaded once at startup)
+hand_detector = HandDetector()
 
 app.add_middleware(
     CORSMiddleware,
@@ -51,12 +56,9 @@ class SessionState:
         self.move_number = 0
         self.perspective_matrix = None
         self.rotation_angle = 0
-        self.bg_frame = None
-        self.last_motion_time = time.time()
-        self.moving_start_time = time.time()
-        self.motion_threshold = 2.0  # seconds
-        self.reference_points = []
-        self.prev_frame = None
+        self.board_corners = []       # 4 [x, y] points in original frame space
+        self.hand_exit_time = None    # timestamp when hand last left the board
+        self.cooldown_duration = 0.5  # seconds to wait after hand exits before capture
         
 # Global session instance (for single-user local deployment)
 session = SessionState()
@@ -113,16 +115,14 @@ def calibrate(data: CalibrationData):
         ], dtype="float32")
         
         session.perspective_matrix = cv2.getPerspectiveTransform(sc_pts, dst_points)
+        session.board_corners = pts  # store original-frame corners for hand detection
         logger.info("Perspective Matrix computed from web calibration.")
-        
+
         warped = cv2.warpPerspective(frame, session.perspective_matrix, (400, CANVAS_HEIGHT))
         session.rotation_angle = determine_orientation(warped)
         logger.info(f"Orientation locked to: {session.rotation_angle}")
-        
+
         session.state = CaptureState.STATIC
-        warped_gray = cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY)
-        session.bg_frame = cv2.GaussianBlur(warped_gray, (21, 21), 0)
-        session.prev_frame = session.bg_frame.copy()
         
         # Save setup image
         save_and_upload(warped)
@@ -141,75 +141,41 @@ def reset_session():
 def process_frame(data: FrameData):
     if session.state == CaptureState.CALIBRATING:
         return {"status": "calibrating"}
-        
+
     frame = decode_image(data.image_b64)
-    # Warp the frame first so we ONLY check motion on the chessboard ROI
-    warped = cv2.warpPerspective(frame, session.perspective_matrix, (400, CANVAS_HEIGHT))
-    
-    gray = cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY)
-    gray_blur = cv2.GaussianBlur(gray, (21, 21), 0)
-    
-    if getattr(session, 'prev_frame', None) is None:
-        session.prev_frame = gray_blur.copy()
-    
-    # Contrast against resting background (detects entry)
-    bg_delta = cv2.absdiff(session.bg_frame, gray_blur)
-    bg_thresh = cv2.threshold(bg_delta, 25, 255, cv2.THRESH_BINARY)[1]
-    bg_thresh = cv2.dilate(bg_thresh, None, iterations=2)
-    bg_contours, _ = cv2.findContours(bg_thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    max_bg_area = max([cv2.contourArea(c) for c in bg_contours] + [0])
-    
-    # Contrast against previous frame (detects active movement)
-    prev_delta = cv2.absdiff(session.prev_frame, gray_blur)
-    prev_thresh = cv2.threshold(prev_delta, 25, 255, cv2.THRESH_BINARY)[1]
-    prev_thresh = cv2.dilate(prev_thresh, None, iterations=2)
-    prev_contours, _ = cv2.findContours(prev_thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    max_prev_area = max([cv2.contourArea(c) for c in prev_contours] + [0])
-    
-    session.prev_frame = gray_blur.copy()
-    
-    # Thresholds
-    trigger_area = 800       # Area differing from resting background to trigger MOVING
-    movement_area = 100      # Area changing frame-to-frame to keep in MOVING 
+
+    # Run hand detection on the original (un-warped) frame
+    hand_result = hand_detector.process_frame(frame, session.board_corners)
 
     if session.state == CaptureState.STATIC:
-        if max_bg_area > trigger_area:
-            logger.info("Motion detected - STATE: MOVING")
+        if hand_result.over_board:
+            logger.info("Hand over board detected — STATE: MOVING")
             session.state = CaptureState.MOVING
-            session.moving_start_time = time.time()
-            session.last_motion_time = time.time()
-            
+            session.hand_exit_time = None
+
     elif session.state == CaptureState.MOVING:
-        if max_prev_area > movement_area:
-            # Active movement happening frame-to-frame. Reset stabilization timer.
-            session.last_motion_time = time.time()
-            
-            # Adaptive Background Update: 10 second timeout for runaway states
-            time_since_move_started = time.time() - session.moving_start_time
-            if time_since_move_started > 10.0:
-                logger.warning("Moving state timed out (10s). Assuming camera shifted. Forcing re-stabilization.")
-                session.bg_frame = gray_blur.copy()
-                session.state = CaptureState.STATIC
+        if hand_result.over_board:
+            # Hand still present — reset any exit timer
+            session.hand_exit_time = None
         else:
-            # Scene is still from frame-to-frame. Wait for stabilization threshold. 
-            stable_duration = time.time() - session.last_motion_time
-            if stable_duration >= session.motion_threshold:
-                logger.info(f"Board stabilized. Capturing Move {session.move_number}.")
+            # Hand has left the board
+            if session.hand_exit_time is None:
+                session.hand_exit_time = time.time()
+            elif time.time() - session.hand_exit_time >= session.cooldown_duration:
+                logger.info(f"Hand gone for {session.cooldown_duration}s — capturing move {session.move_number}.")
                 session.state = CaptureState.STATIC
-                
-                # Capture the newly moved state
+                session.hand_exit_time = None
+
+                warped = cv2.warpPerspective(frame, session.perspective_matrix, (400, CANVAS_HEIGHT))
                 save_and_upload(warped)
-                
-                # Lock the NEW board state as the background for future moves!
-                session.bg_frame = gray_blur.copy()
-    
-    # Return a thumbnail of the mask for debugging in the UI
-    mask_b64 = encode_image(bg_thresh)
-    
+
+    # Return annotated debug frame (hand landmarks + board polygon)
+    debug_b64 = encode_image(hand_result.annotated_frame)
+
     return {
         "state": session.state.value,
         "is_moving": session.state == CaptureState.MOVING,
-        "mask_b64": mask_b64
+        "mask_b64": debug_b64,
     }
 
 def save_and_upload(warped_frame):

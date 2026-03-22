@@ -9,11 +9,12 @@ import sys
 import boto3
 from botocore.exceptions import NoCredentialsError
 
-# Add preprocessing path to import determine_orientation
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(os.path.dirname(script_dir))
 sys.path.append(os.path.join(project_root, 'src', 'preprocessing'))
+sys.path.append(script_dir)
 from process_board import determine_orientation, CANVAS_HEIGHT, BOARD_START_Y
+from hand_detector import HandDetector
 
 class CaptureState(Enum):
     CALIBRATING = 1
@@ -32,10 +33,10 @@ class ChessSessionManager:
         self.perspective_matrix = None
         self.reference_points = []
         
-        # Motion detection params
-        self.last_motion_time = time.time()
-        self.motion_threshold = 2.0  # seconds
-        self.bg_frame = None
+        # Hand detection
+        self.hand_detector = HandDetector()
+        self.hand_exit_time = None    # timestamp when hand last left the board
+        self.cooldown_duration = 0.5  # seconds after hand exits before capture
         
         # AWS Setup
         if self.upload:
@@ -72,76 +73,54 @@ class ChessSessionManager:
         key = cv2.waitKey(1) & 0xFF
         if key == ord('c') and len(self.reference_points) == 4:
             pts = np.array(self.reference_points, dtype="float32")
-            
-            # The destination should match our existing 400x500 padded target from process_board
-            # We want the 400x400 board to fit perfectly starting at Y=100
+
             dst_points = np.array([
                 [0, BOARD_START_Y],
                 [400, BOARD_START_Y],
                 [400, BOARD_START_Y + 400],
                 [0, BOARD_START_Y + 400]
             ], dtype="float32")
-            
+
             self.perspective_matrix = cv2.getPerspectiveTransform(pts, dst_points)
             self.logger.info("Calibration successful. Perspective Matrix computed.")
-            
-            # Now, test the orientation on this reference frame!
-            warped = cv2.warpPerspective(frame, self.perspective_matrix, (400, CANVAS_HEIGHT))
+
+            # Use `display` (which IS the current frame copy) for orientation detection
+            warped = cv2.warpPerspective(display, self.perspective_matrix, (400, CANVAS_HEIGHT))
             self.rotation_angle = determine_orientation(warped)
             self.logger.info(f"Orientation locked to: {self.rotation_angle} degrees.")
-            
+
             self.state = CaptureState.STATIC
-            self.bg_frame = self.preprocess_for_motion(display)
-            
+
             # Save the '00' setup image
             self.save_and_upload(warped)
             
-    def preprocess_for_motion(self, frame):
-        """Grayscales and blurs frame for differencing."""
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        return cv2.GaussianBlur(gray, (21, 21), 0)
+    def process_hand(self, frame):
+        """
+        Runs hand detection and updates the state machine.
+        Returns the annotated debug frame (landmarks + board polygon drawn).
+        """
+        hand_result = self.hand_detector.process_frame(frame, self.reference_points)
 
-    def detect_motion(self, frame):
-        """Updates the state transitioning between MOVING and STATIC."""
-        gray = self.preprocess_for_motion(frame)
-        
-        # Absolute difference between current frame and our reference BG
-        frame_delta = cv2.absdiff(self.bg_frame, gray)
-        thresh = cv2.threshold(frame_delta, 25, 255, cv2.THRESH_BINARY)[1]
-        thresh = cv2.dilate(thresh, None, iterations=2)
-        
-        contours, _ = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        is_moving = False
-        for c in contours:
-            if cv2.contourArea(c) > 500: # Motion threshold area
-                is_moving = True
-                break
-                
-        if is_moving:
-            if self.state != CaptureState.MOVING:
-                self.logger.info("Motion detected! State -> MOVING")
-            self.state = CaptureState.MOVING
-            self.last_motion_time = time.time()
-            
-            # Slowly update background to adapt to lighting changes
-            cv2.accumulateWeighted(gray, self.bg_frame.astype("float"), 0.05)
-            self.bg_frame = cv2.convertScaleAbs(self.bg_frame)
-        else:
-            # If we were moving and now stabilized
-            if self.state == CaptureState.MOVING:
-                stable_duration = time.time() - self.last_motion_time
-                if stable_duration >= self.motion_threshold:
-                    self.logger.info(f"Board stabilized for {self.motion_threshold}s. Capturing move!")
+        if self.state == CaptureState.STATIC:
+            if hand_result.over_board:
+                self.logger.info("Hand over board — STATE: MOVING")
+                self.state = CaptureState.MOVING
+                self.hand_exit_time = None
+
+        elif self.state == CaptureState.MOVING:
+            if hand_result.over_board:
+                self.hand_exit_time = None
+            else:
+                if self.hand_exit_time is None:
+                    self.hand_exit_time = time.time()
+                elif time.time() - self.hand_exit_time >= self.cooldown_duration:
+                    self.logger.info(f"Hand gone for {self.cooldown_duration}s — capturing move {self.move_number}.")
                     self.state = CaptureState.STATIC
-                    # Capture the finalized move
+                    self.hand_exit_time = None
                     warped = cv2.warpPerspective(frame, self.perspective_matrix, (400, CANVAS_HEIGHT))
                     self.save_and_upload(warped)
-                    
-                    # Update background to perfectly match the new static state
-                    self.bg_frame = gray
-                    
-        return thresh # Return visual difference for UI
+
+        return hand_result.annotated_frame
 
     def save_and_upload(self, warped_frame):
         """Saves the rectified snapshot locally and uploads to S3."""
@@ -189,26 +168,15 @@ class ChessSessionManager:
             if self.state == CaptureState.CALIBRATING:
                 self.calibrate(display)
             else:
-                motion_mask = self.detect_motion(frame)
-                
-                # Draw grid bounds for visualization
-                rectified_pts = np.array([
-                    [0, BOARD_START_Y], [400, BOARD_START_Y], 
-                    [400, BOARD_START_Y + 400], [0, BOARD_START_Y + 400]
-                ], dtype="float32")
-                inv_M = cv2.invert(self.perspective_matrix)[1]
-                if inv_M is not None:
-                    board_contour = cv2.perspectiveTransform(np.array([rectified_pts]), inv_M)
-                    cv2.polylines(display, [np.int32(board_contour)], True, (0, 255, 0), 2)
-                
-                # Overlay UI info
+                annotated = self.process_hand(frame)
+
+                # Overlay UI info on the annotated debug frame
                 status_color = (0, 0, 255) if self.state == CaptureState.MOVING else (0, 255, 0)
-                cv2.putText(display, f"STATE: {self.state.name}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, status_color, 2)
-                cv2.putText(display, f"ROTATION: {self.rotation_angle}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-                cv2.putText(display, f"MOVES CAPTURED: {self.move_number-1}", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-                
-                cv2.imshow("Chess Session Manager", display)
-                cv2.imshow("Motion Mask", motion_mask)
+                cv2.putText(annotated, f"STATE: {self.state.name}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, status_color, 2)
+                cv2.putText(annotated, f"ROTATION: {self.rotation_angle}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                cv2.putText(annotated, f"MOVES CAPTURED: {self.move_number - 1}", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+
+                cv2.imshow("Chess Session Manager", annotated)
                 
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):
@@ -217,6 +185,7 @@ class ChessSessionManager:
                 
         cap.release()
         cv2.destroyAllWindows()
+        self.hand_detector.close()
 
 if __name__ == "__main__":
     import argparse
