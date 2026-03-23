@@ -200,7 +200,7 @@ btnCalibrate.addEventListener('click', async () => {
         });
         const data = await res.json();
         if (data.status === 'success') {
-            showOrientationStep(data.warped_b64);
+            showOrientationStep(data.warped_b64, data.grid);
         } else {
             alert('Calibration failed!');
             btnCalibrate.innerText = 'Calibrate Board';
@@ -214,8 +214,22 @@ btnCalibrate.addEventListener('click', async () => {
 });
 
 // ─── Step 2: a1 orientation selection ────────────────────────────────────────
-const GRID = 8;
 
+// gridLines holds the detected line positions from the server (image pixel coords)
+// { x_lines: [x0..x8], y_lines: [y0..y8] }
+let gridLines = null;
+
+// Map a pixel position in image space → cell {col, row} using detected grid
+function pixelToCell(imgX, imgY) {
+    const xs = gridLines.x_lines;
+    const ys = gridLines.y_lines;
+    let col = 0, row = 0;
+    for (let i = 0; i < 8; i++) { if (imgX >= xs[i]) col = i; }
+    for (let i = 0; i < 8; i++) { if (imgY >= ys[i]) row = i; }
+    return { col, row };
+}
+
+// Snap cell to the nearest board corner (a1 must be at a corner)
 function snapToCorner(col, row) {
     const corners = [{col:0,row:0},{col:7,row:0},{col:0,row:7},{col:7,row:7}];
     return corners.reduce((best, c) => {
@@ -225,53 +239,85 @@ function snapToCorner(col, row) {
     });
 }
 
-function drawOrientationGrid(highlighted) {
-    const W = orientCanvas.width;
-    const H = orientCanvas.height;
-    const cw = W / GRID;
-    const ch = H / GRID;
-    octx.clearRect(0, 0, W, H);
+// imgW/imgH = natural image dimensions (400x400)
+// scale grid line coords to canvas display coords
+function imgToCanvas(imgX, imgY) {
+    const scaleX = orientCanvas.width  / warpedImg.naturalWidth;
+    const scaleY = orientCanvas.height / warpedImg.naturalHeight;
+    return [imgX * scaleX, imgY * scaleY];
+}
 
+function drawOrientationGrid(highlighted) {
+    const xs = gridLines ? gridLines.x_lines : [...Array(9)].map((_, i) => i * 50);
+    const ys = gridLines ? gridLines.y_lines : [...Array(9)].map((_, i) => i * 50);
+
+    const iW = warpedImg.naturalWidth  || 400;
+    const iH = warpedImg.naturalHeight || 400;
+    const cW = orientCanvas.width;
+    const cH = orientCanvas.height;
+    const sx = cW / iW;
+    const sy = cH / iH;
+
+    octx.clearRect(0, 0, cW, cH);
+
+    // Highlight the selected corner cell
     if (highlighted) {
-        octx.fillStyle = 'rgba(46, 160, 67, 0.5)';
-        octx.fillRect(highlighted.col * cw, highlighted.row * ch, cw, ch);
+        const cx0 = xs[highlighted.col]     * sx;
+        const cx1 = xs[highlighted.col + 1] * sx;
+        const cy0 = ys[highlighted.row]     * sy;
+        const cy1 = ys[highlighted.row + 1] * sy;
+        octx.fillStyle = 'rgba(46, 160, 67, 0.55)';
+        octx.fillRect(cx0, cy0, cx1 - cx0, cy1 - cy0);
         octx.fillStyle = '#fff';
-        octx.font = `bold ${Math.round(cw * 0.35)}px Inter`;
+        const cellW = cx1 - cx0;
+        const cellH = cy1 - cy0;
+        octx.font = `bold ${Math.round(Math.min(cellW, cellH) * 0.3)}px Inter`;
         octx.textAlign = 'center';
         octx.textBaseline = 'middle';
-        octx.fillText('a1', (highlighted.col + 0.5) * cw, (highlighted.row + 0.5) * ch);
+        octx.fillText('a1', (cx0 + cx1) / 2, (cy0 + cy1) / 2);
     }
 
-    octx.strokeStyle = 'rgba(88, 166, 255, 0.6)';
-    octx.lineWidth = 1;
-    for (let i = 1; i < GRID; i++) {
-        octx.beginPath(); octx.moveTo(i * cw, 0); octx.lineTo(i * cw, H); octx.stroke();
-        octx.beginPath(); octx.moveTo(0, i * ch); octx.lineTo(W, i * ch); octx.stroke();
-    }
+    // Draw detected grid lines
+    octx.strokeStyle = 'rgba(88, 166, 255, 0.7)';
+    octx.lineWidth = 1.5;
+    xs.forEach(x => {
+        const cx = x * sx;
+        octx.beginPath(); octx.moveTo(cx, 0); octx.lineTo(cx, cH); octx.stroke();
+    });
+    ys.forEach(y => {
+        const cy = y * sy;
+        octx.beginPath(); octx.moveTo(0, cy); octx.lineTo(cW, cy); octx.stroke();
+    });
 
+    // Label the 4 corners (TL / TR / BL / BR)
     const cornerLabels = [
         {col:0,row:0,text:'TL'},{col:7,row:0,text:'TR'},
         {col:0,row:7,text:'BL'},{col:7,row:7,text:'BR'},
     ];
-    octx.fillStyle = 'rgba(255,255,255,0.35)';
-    octx.font = `${Math.round(cw * 0.22)}px Inter`;
+    octx.fillStyle = 'rgba(255,255,255,0.4)';
+    const labelSize = Math.round(Math.min(cW, cH) / 8 * 0.25);
+    octx.font = `${labelSize}px Inter`;
     octx.textAlign = 'center';
     octx.textBaseline = 'middle';
     cornerLabels.forEach(l => {
         if (highlighted && l.col === highlighted.col && l.row === highlighted.row) return;
-        octx.fillText(l.text, (l.col + 0.5) * cw, (l.row + 0.5) * ch);
+        const mx = (xs[l.col] + xs[l.col + 1]) / 2 * sx;
+        const my = (ys[l.row] + ys[l.row + 1]) / 2 * sy;
+        octx.fillText(l.text, mx, my);
     });
     octx.textAlign = 'left';
     octx.textBaseline = 'alphabetic';
 }
 
-function showOrientationStep(warpedB64) {
+function showOrientationStep(warpedB64, grid) {
+    gridLines = grid;   // store detected grid from server
     video.style.display         = 'none';
     overlayCanvas.style.display = 'none';
     calibControls.style.display = 'none';
     orientPanel.style.display   = 'block';
     warpedImg.src = warpedB64;
     warpedImg.onload = () => {
+        // Match canvas internal size to image natural size so coords align
         orientCanvas.width  = warpedImg.naturalWidth;
         orientCanvas.height = warpedImg.naturalHeight;
         drawOrientationGrid(null);
@@ -285,13 +331,19 @@ function showOrientationStep(warpedB64) {
 
 orientCanvas.addEventListener('mousedown', (e) => {
     const rect = orientCanvas.getBoundingClientRect();
-    const col  = Math.floor((e.clientX - rect.left) / (rect.width  / GRID));
-    const row  = Math.floor((e.clientY - rect.top)  / (rect.height / GRID));
-    selectedA1 = snapToCorner(col, row);
+    // Scale click to image pixel space (canvas internal coords = image natural size)
+    const imgX = (e.clientX - rect.left) * (warpedImg.naturalWidth  / rect.width);
+    const imgY = (e.clientY - rect.top)  * (warpedImg.naturalHeight / rect.height);
+
+    const cell = pixelToCell(imgX, imgY);
+    selectedA1 = snapToCorner(cell.col, cell.row);
     btnConfirmA1.disabled = false;
+
+    // Redraw at natural resolution
     orientCanvas.width  = warpedImg.naturalWidth;
     orientCanvas.height = warpedImg.naturalHeight;
     drawOrientationGrid(selectedA1);
+
     const names = {'0,7':'Bottom-Left','7,7':'Bottom-Right','0,0':'Top-Left','7,0':'Top-Right'};
     orientHint.innerHTML = `a1 at <strong>${names[`${selectedA1.col},${selectedA1.row}`]}</strong> — confirm?`;
 });

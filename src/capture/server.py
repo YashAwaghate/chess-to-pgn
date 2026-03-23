@@ -16,11 +16,32 @@ from pydantic import BaseModel
 from typing import Optional
 import sys
 
+# Load .env file when running locally (no-op in production where env vars are injected)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(os.path.dirname(script_dir))
 sys.path.append(os.path.join(project_root, 'src', 'preprocessing'))
 sys.path.append(script_dir)
 from hand_detector import HandDetector
+
+# ── S3 (optional — only active when S3_BUCKET env var is set) ────────────────
+S3_BUCKET = os.getenv("S3_BUCKET", "")
+S3_PREFIX = os.getenv("S3_PREFIX", "sessions")
+_s3_client = None
+if S3_BUCKET:
+    try:
+        import boto3
+        _s3_client = boto3.client(
+            "s3",
+            region_name=os.getenv("AWS_REGION", "us-east-1"),
+        )
+    except Exception as _e:
+        print(f"[WARN] Could not initialise S3 client: {_e}. Running without S3.")
 
 app = FastAPI()
 hand_detector = HandDetector()
@@ -69,6 +90,7 @@ class SessionState:
         self.rotation_code      = None
         self.board_corners      = []
         self.warped_setup_frame = None
+        self.board_grid         = None  # {'x_lines': [...], 'y_lines': [...]}
         self.hand_exit_time     = None
         self.cooldown_duration  = 0.5
         self.game_info: dict    = {}   # populated by /api/setup
@@ -127,18 +149,144 @@ def snap_to_corner(col: int, row: int) -> tuple:
     corners = [(0, 0), (7, 0), (0, 7), (7, 7)]
     return min(corners, key=lambda c: abs(c[0] - col) + abs(c[1] - row))
 
+def detect_board_grid(warped: np.ndarray) -> dict:
+    """
+    Detect the 9 vertical and 9 horizontal grid lines on a warped board image
+    using gradient projection — robust to pieces blocking the lines.
+
+    Strategy:
+      • Compute Sobel gradients, sum their absolute values per column/row.
+      • The chessboard alternating pattern creates strong, consistent peaks
+        at every grid boundary across the full image width/height.
+      • Pick the 9 peaks with correct spacing via non-maximum suppression.
+      • Extrapolate if fewer than 9 are found.
+
+    Returns {'x_lines': [9 ints], 'y_lines': [9 ints]}.
+    """
+    H, W = warped.shape[:2]
+
+    def uniform():
+        return {
+            'x_lines': [round(i * W / 8) for i in range(9)],
+            'y_lines': [round(i * H / 8) for i in range(9)],
+        }
+
+    # ── Gradient profiles ────────────────────────────────────────────────────
+    gray = cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    gray = clahe.apply(gray)
+
+    gx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)   # vertical edges
+    gy = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)   # horizontal edges
+
+    col_profile = np.sum(np.abs(gx), axis=0)   # W values — peaks at vertical lines
+    row_profile = np.sum(np.abs(gy), axis=1)   # H values — peaks at horizontal lines
+
+    def find_9_lines(profile, dim):
+        # Smooth to suppress piece-edge noise while keeping grid peaks
+        smooth_k = max(3, dim // 60)
+        kernel   = np.ones(smooth_k) / smooth_k
+        smooth   = np.convolve(profile, kernel, mode='same')
+
+        # Minimum expected spacing: assume grid occupies at least 50% of dim
+        min_spacing = dim // (8 * 3)   # generous lower bound
+
+        # Collect all local maxima above a noise threshold
+        noise_floor = np.mean(smooth) + 0.3 * np.std(smooth)
+        candidates  = []
+        for i in range(1, dim - 1):
+            if smooth[i] > smooth[i - 1] and smooth[i] >= smooth[i + 1] \
+                    and smooth[i] > noise_floor:
+                candidates.append((float(smooth[i]), i))
+
+        if len(candidates) < 2:
+            return None   # signal too weak, fall back to uniform
+
+        # Non-maximum suppression: keep strongest peaks with min spacing
+        candidates.sort(key=lambda x: -x[0])
+        selected = []
+        for _, pos in candidates:
+            if all(abs(pos - s) >= min_spacing for s in selected):
+                selected.append(pos)
+
+        selected.sort()
+        if len(selected) < 2:
+            return None
+
+        # Estimate grid spacing from the detected peaks
+        diffs   = np.diff(selected)
+        valid   = diffs[diffs > min_spacing * 0.5]
+        if len(valid) == 0:
+            return None
+        spacing = float(np.median(valid))
+
+        # Extrapolate forward and backward to reach 9 lines
+        result = list(map(float, selected))
+        for _ in range(20):
+            if len(result) >= 9:
+                break
+            # Prefer filling toward the edges of the image
+            gap_front = result[0]
+            gap_back  = dim - result[-1]
+            if gap_front > gap_back and gap_front > spacing * 0.4:
+                result.insert(0, result[0] - spacing)
+            elif gap_back > spacing * 0.4:
+                result.append(result[-1] + spacing)
+            else:
+                break
+
+        # Trim extras (keep the 9 that best cover [0, dim])
+        while len(result) > 9:
+            if abs(result[0]) > abs(result[-1] - dim):
+                result.pop(0)
+            else:
+                result.pop()
+        # Last resort pad
+        while len(result) < 9:
+            result.append(result[-1] + spacing)
+
+        return [int(round(v)) for v in sorted(result)[:9]]
+
+    x_lines = find_9_lines(col_profile, W)
+    y_lines = find_9_lines(row_profile, H)
+
+    if x_lines is None or y_lines is None:
+        logger.warning("Grid detection fell back to uniform grid.")
+        return uniform()
+
+    logger.info(f"Grid x: {x_lines}")
+    logger.info(f"Grid y: {y_lines}")
+    return {'x_lines': x_lines, 'y_lines': y_lines}
+
+
 def write_game_info():
-    """Write (or update) game_info.json for the current session."""
+    """Write (or update) game_info.json locally and sync to S3."""
     save_dir = os.path.join(project_root, "data", "sessions", session.game_id)
     os.makedirs(save_dir, exist_ok=True)
     data = dict(session.game_info)
     data["rotation"]    = session.rotation_angle
     data["total_moves"] = max(0, session.move_number - 1)
-    with open(os.path.join(save_dir, "game_info.json"), "w") as f:
+    local_path = os.path.join(save_dir, "game_info.json")
+    with open(local_path, "w") as f:
         json.dump(data, f, indent=2)
+    _s3_upload(local_path, f"{S3_PREFIX}/{session.game_id}/game_info.json")
 
 
 # ──────────────────────────── Endpoints ──────────────────────────────────────
+
+@app.get("/api/debug/grid")
+def debug_grid():
+    """Returns the warped setup frame with the detected grid drawn on it — useful for verifying detection."""
+    if session.warped_setup_frame is None or session.board_grid is None:
+        return JSONResponse(status_code=400, content={"message": "No warped frame available"})
+    img   = session.warped_setup_frame.copy()
+    grid  = session.board_grid
+    for x in grid['x_lines']:
+        cv2.line(img, (x, 0), (x, img.shape[0]), (0, 255, 0), 2)
+    for y in grid['y_lines']:
+        cv2.line(img, (0, y), (img.shape[1], y), (0, 255, 0), 2)
+    return {"debug_b64": encode_image(img)}
+
 
 @app.get("/api/state")
 def get_state():
@@ -201,8 +349,10 @@ def calibrate(data: CalibrationData):
         session.warped_setup_frame = warped.copy()
         session.state              = CaptureState.ORIENTATION
 
-        logger.info("Perspective matrix computed — awaiting a1 click.")
-        return {"status": "success", "warped_b64": encode_image(warped)}
+        grid = detect_board_grid(warped)
+        session.board_grid = grid
+        logger.info(f"Grid detected — x: {grid['x_lines']}, y: {grid['y_lines']}")
+        return {"status": "success", "warped_b64": encode_image(warped), "grid": grid}
     except Exception as e:
         logger.error(f"Calibration error: {e}")
         return JSONResponse(status_code=500, content={"message": str(e)})
@@ -282,12 +432,25 @@ def process_frame(data: FrameData):
     }
 
 
+def _s3_upload(local_path: str, s3_key: str):
+    """Best-effort S3 upload — logs errors but never raises."""
+    if not _s3_client or not S3_BUCKET:
+        return
+    try:
+        _s3_client.upload_file(local_path, S3_BUCKET, s3_key)
+        logger.info(f"S3 ↑ s3://{S3_BUCKET}/{s3_key}")
+    except Exception as e:
+        logger.error(f"S3 upload failed for {s3_key}: {e}")
+
+
 def save_and_upload(frame: np.ndarray):
     filename = f"{session.game_id}_{session.move_number:03d}.jpg"
     save_dir = os.path.join(project_root, "data", "sessions", session.game_id)
     os.makedirs(save_dir, exist_ok=True)
-    cv2.imwrite(os.path.join(save_dir, filename), frame)
+    local_path = os.path.join(save_dir, filename)
+    cv2.imwrite(local_path, frame)
     write_game_info()
+    _s3_upload(local_path, f"{S3_PREFIX}/{session.game_id}/{filename}")
     logger.info(f"Saved: {filename}")
     session.move_number += 1
 
@@ -298,4 +461,6 @@ app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)
+    port = int(os.getenv("PORT", 8000))
+    # reload=True is fine locally; Railway/Docker will just run it once
+    uvicorn.run("server:app", host="0.0.0.0", port=port, reload=False)
