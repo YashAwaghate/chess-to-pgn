@@ -153,23 +153,25 @@ function getFrameBase64() {
 // cropBox: [TL, TR, BR, BL] in canvas-pixel space.
 // Order matches server dst = [[0,0],[400,0],[400,400],[0,400]].
 //
-// Hit detection is done in *display pixels* (client coords) so that the
-// ~32 px touch/click target is consistent regardless of camera resolution.
+// dragIdx 0-3 = corners (TL,TR,BR,BL), 4-7 = edges (top,right,bottom,left).
+// Hit detection uses display pixels so the target is consistent at any resolution.
 
-const HIT_R_PX = 32;   // hit-target radius in display pixels
+const HIT_R_CORNER = 34;  // display px hit radius for corners
+const HIT_R_EDGE   = 28;  // display px hit radius for edge midpoints
 let cropBox = null;
 let dragIdx = -1;
 
 function defaultCropBox() {
     const w = overlayCanvas.width  || 640;
     const h = overlayCanvas.height || 480;
-    const mx = w * 0.13;
-    const my = h * 0.13;
+    // 22% margin each side → box is 56% of frame, corners well inside the view
+    const mx = w * 0.22;
+    const my = h * 0.22;
     return [
-        { x: mx,     y: my },       // TL
-        { x: w - mx, y: my },       // TR
-        { x: w - mx, y: h - my },   // BR
-        { x: mx,     y: h - my },   // BL
+        { x: mx,     y: my },       // 0 TL
+        { x: w - mx, y: my },       // 1 TR
+        { x: w - mx, y: h - my },   // 2 BR
+        { x: mx,     y: h - my },   // 3 BL
     ];
 }
 
@@ -178,8 +180,7 @@ function initCropBox() {
     drawCropBox();
 }
 
-// Returns the canvas→display scale factors.
-// Cached per call to avoid calling getBoundingClientRect too often.
+// Returns canvas→display scale + bounding rect (one getBoundingClientRect call).
 function getCanvasScale() {
     const rect = overlayCanvas.getBoundingClientRect();
     return {
@@ -189,42 +190,65 @@ function getCanvasScale() {
     };
 }
 
+// Edge midpoints derived from current cropBox corners.
+// Index offset +4: top=4, right=5, bottom=6, left=7
+function edgeMidpoints() {
+    const [tl, tr, br, bl] = cropBox;
+    return [
+        { x: (tl.x + tr.x) / 2, y: (tl.y + tr.y) / 2 },  // 4 top
+        { x: (tr.x + br.x) / 2, y: (tr.y + br.y) / 2 },  // 5 right
+        { x: (br.x + bl.x) / 2, y: (br.y + bl.y) / 2 },  // 6 bottom
+        { x: (bl.x + tl.x) / 2, y: (bl.y + tl.y) / 2 },  // 7 left
+    ];
+}
+
 function drawCropBox() {
     ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
     if (!cropBox) return;
+
+    const { x: sx, y: sy } = getCanvasScale();
+    // Handle draw radii in canvas pixels (≈ target display px)
+    const cornerR = 13 * Math.max(sx, sy);
+    const edgeR   =  9 * Math.max(sx, sy);
 
     // ── Quad fill + outline ───────────────────────────────────────────────────
     ctx.beginPath();
     ctx.moveTo(cropBox[0].x, cropBox[0].y);
     for (let i = 1; i < 4; i++) ctx.lineTo(cropBox[i].x, cropBox[i].y);
     ctx.closePath();
-    ctx.fillStyle   = 'rgba(88, 166, 255, 0.13)';
+    ctx.fillStyle   = 'rgba(88, 166, 255, 0.12)';
     ctx.fill();
-    ctx.strokeStyle = 'rgba(88, 166, 255, 0.9)';
-    ctx.lineWidth   = 3;
+    ctx.strokeStyle = 'rgba(88, 166, 255, 0.85)';
+    ctx.lineWidth   = Math.max(1.5, 2 * Math.max(sx, sy));
     ctx.stroke();
 
-    // ── Corner handles ────────────────────────────────────────────────────────
-    // Draw at ~14 display pixels radius expressed in canvas pixels.
-    const { x: sx, y: sy } = getCanvasScale();
-    const drawR = 14 * Math.max(sx, sy);   // canvas pixels ≈ 14 display px
-    const labels = ['TL', 'TR', 'BR', 'BL'];
-
-    cropBox.forEach((p, i) => {
-        const active = (i === dragIdx);
-
-        // Outer ring
+    // ── Edge midpoint handles (drawn first so corners appear on top) ──────────
+    const edges = edgeMidpoints();
+    edges.forEach((p, i) => {
+        const active = (dragIdx === i + 4);
         ctx.beginPath();
-        ctx.arc(p.x, p.y, drawR, 0, 2 * Math.PI);
-        ctx.fillStyle   = active ? '#ffffff' : 'rgba(88, 166, 255, 0.9)';
+        ctx.arc(p.x, p.y, edgeR, 0, 2 * Math.PI);
+        ctx.fillStyle   = active ? '#ffffff' : 'rgba(88, 166, 255, 0.65)';
         ctx.fill();
         ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth   = 2;
+        ctx.lineWidth   = Math.max(1, 1.5 * Math.max(sx, sy));
+        ctx.stroke();
+    });
+
+    // ── Corner handles ────────────────────────────────────────────────────────
+    const labels = ['TL', 'TR', 'BR', 'BL'];
+    cropBox.forEach((p, i) => {
+        const active = (dragIdx === i);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, cornerR, 0, 2 * Math.PI);
+        ctx.fillStyle   = active ? '#ffffff' : 'rgba(88, 166, 255, 0.92)';
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth   = Math.max(1.5, 2 * Math.max(sx, sy));
         ctx.stroke();
 
-        // Label
         ctx.fillStyle       = active ? '#1f6feb' : '#ffffff';
-        ctx.font            = `bold ${Math.round(drawR * 0.65)}px sans-serif`;
+        ctx.font            = `bold ${Math.round(cornerR * 0.65)}px sans-serif`;
         ctx.textAlign       = 'center';
         ctx.textBaseline    = 'middle';
         ctx.fillText(labels[i], p.x, p.y);
@@ -234,18 +258,26 @@ function drawCropBox() {
     ctx.textBaseline = 'alphabetic';
 }
 
-// Find which handle is closest to (clientX, clientY) in display pixels.
-// Returns the index or -1 if none within HIT_R_PX.
+// Hit test all 8 handles (corners 0-3, edges 4-7) in display pixel space.
 function hitHandleAt(clientX, clientY) {
     if (!cropBox) return -1;
     const { x: sx, y: sy, rect } = getCanvasScale();
+
+    const allHandles = [
+        ...cropBox,          // 0-3 corners
+        ...edgeMidpoints(),  // 4-7 edges
+    ];
+    const hitR = [
+        HIT_R_CORNER, HIT_R_CORNER, HIT_R_CORNER, HIT_R_CORNER,
+        HIT_R_EDGE,   HIT_R_EDGE,   HIT_R_EDGE,   HIT_R_EDGE,
+    ];
+
     let best = -1, bestD = Infinity;
-    cropBox.forEach((p, i) => {
-        // Canvas px → display px
+    allHandles.forEach((p, i) => {
         const dispX = p.x / sx + rect.left;
         const dispY = p.y / sy + rect.top;
         const d = Math.hypot(clientX - dispX, clientY - dispY);
-        if (d < HIT_R_PX && d < bestD) { best = i; bestD = d; }
+        if (d < hitR[i] && d < bestD) { best = i; bestD = d; }
     });
     return best;
 }
@@ -266,7 +298,19 @@ function startDrag(idx) {
 
 function moveDrag(clientX, clientY) {
     if (dragIdx < 0 || isCalibrated) return;
-    cropBox[dragIdx] = clientToCanvas(clientX, clientY);
+    const pt = clientToCanvas(clientX, clientY);
+    if (dragIdx < 4) {
+        // Corner — free movement
+        cropBox[dragIdx] = pt;
+    } else {
+        // Edge — constrained to one axis
+        switch (dragIdx) {
+            case 4: cropBox[0].y = cropBox[1].y = pt.y; break;  // top   → Y only
+            case 5: cropBox[1].x = cropBox[2].x = pt.x; break;  // right → X only
+            case 6: cropBox[2].y = cropBox[3].y = pt.y; break;  // bottom→ Y only
+            case 7: cropBox[0].x = cropBox[3].x = pt.x; break;  // left  → X only
+        }
+    }
     drawCropBox();
 }
 
