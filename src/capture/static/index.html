@@ -12,41 +12,151 @@
         <header>
             <div class="header-content">
                 <h1>Chess Session Manager</h1>
-                <div class="status-badge" id="app-status">CALIBRATING</div>
+                <div class="status-badge" id="app-status">SETUP</div>
             </div>
         </header>
 
-        <main>
+        <!-- ── Step 0: Game Setup Form ─────────────────────────────────── -->
+        <div id="setup-panel" class="setup-panel">
+            <h2>New Game</h2>
+            <div class="setup-grid">
+                <div class="form-group">
+                    <label for="inp-white">White Player</label>
+                    <input type="text" id="inp-white" placeholder="White" autocomplete="off" />
+                </div>
+                <div class="form-group">
+                    <label for="inp-black">Black Player</label>
+                    <input type="text" id="inp-black" placeholder="Black" autocomplete="off" />
+                </div>
+                <div class="form-group">
+                    <label for="inp-event">Event / Game Name</label>
+                    <input type="text" id="inp-event" placeholder="Auto-filled from player names" />
+                </div>
+                <div class="form-group">
+                    <label for="inp-site">Site / Location</label>
+                    <input type="text" id="inp-site" placeholder="e.g. Home, Club Name" />
+                </div>
+                <div class="form-group">
+                    <label for="inp-date">Date</label>
+                    <input type="date" id="inp-date" />
+                </div>
+                <div class="form-group">
+                    <label for="inp-round">Round</label>
+                    <input type="text" id="inp-round" placeholder="-" />
+                </div>
+                <div class="form-group">
+                    <label for="inp-tc">Time Control</label>
+                    <select id="inp-tc">
+                        <option value="Casual">Casual</option>
+                        <option value="Bullet 1+0">Bullet (1+0)</option>
+                        <option value="Bullet 2+1">Bullet (2+1)</option>
+                        <option value="Blitz 3+0">Blitz (3+0)</option>
+                        <option value="Blitz 3+2">Blitz (3+2)</option>
+                        <option value="Blitz 5+0">Blitz (5+0)</option>
+                        <option value="Blitz 5+3">Blitz (5+3)</option>
+                        <option value="Rapid 10+0">Rapid (10+0)</option>
+                        <option value="Rapid 15+10">Rapid (15+10)</option>
+                        <option value="Classical 30+0">Classical (30+0)</option>
+                        <option value="Classical 60+0">Classical (60+0)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="inp-notes">Notes</label>
+                    <input type="text" id="inp-notes" placeholder="Optional notes about this game" />
+                </div>
+            </div>
+            <div class="setup-actions">
+                <button id="btn-start-session" class="btn primary large">Start Session →</button>
+            </div>
+        </div>
+
+        <!-- ── Steps 1-3 + active game ────────────────────────────────── -->
+        <main id="game-panel" style="display:none;">
             <div class="video-container">
+                <!-- Step 1: Live webcam corner selection -->
                 <video id="webcam" autoplay playsinline></video>
                 <canvas id="overlay-canvas"></canvas>
                 <div class="controls-overlay" id="calibration-controls">
-                    <p>Click the 4 corners of the board (Top-Left, Top-Right, Bottom-Right, Bottom-Left)</p>
+                    <p>Click the 4 corners of the board (TL → TR → BR → BL)</p>
                     <button id="btn-calibrate" class="btn primary" disabled>Calibrate Board</button>
                     <button id="btn-clear" class="btn secondary">Clear Points</button>
+                </div>
+
+                <!-- Step 2: Warped board + a1 selection -->
+                <div id="orientation-panel" style="display:none; position:absolute; inset:0; background:#000;">
+                    <img id="warped-board-img" style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:contain;" />
+                    <canvas id="orientation-canvas" style="position:absolute; top:0; left:0; width:100%; height:100%; cursor:crosshair;"></canvas>
+                    <div class="controls-overlay" id="orientation-controls">
+                        <p id="orientation-hint">Click on the <strong>a1</strong> square (bottom-left from White's view)</p>
+                        <button id="btn-confirm-a1" class="btn primary" disabled>Confirm a1</button>
+                        <button id="btn-redo-corners" class="btn secondary">Redo Corners</button>
+                    </div>
                 </div>
             </div>
 
             <div class="sidebar">
+                <!-- Game info (read-only during play) -->
                 <div class="panel">
-                    <h2>Session Info</h2>
+                    <h2>Game Info</h2>
                     <div class="info-row">
-                        <span class="label">Game ID:</span>
-                        <span class="value" id="info-game-id">--</span>
+                        <span class="label">White</span>
+                        <span class="value" id="info-white">—</span>
                     </div>
                     <div class="info-row">
-                        <span class="label">Captured Moves:</span>
+                        <span class="label">Black</span>
+                        <span class="value" id="info-black">—</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Event</span>
+                        <span class="value small" id="info-event">—</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Date</span>
+                        <span class="value" id="info-date">—</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Time Control</span>
+                        <span class="value" id="info-tc">—</span>
+                    </div>
+                </div>
+
+                <!-- Session stats -->
+                <div class="panel">
+                    <h2>Session</h2>
+                    <div class="info-row">
+                        <span class="label">Game ID</span>
+                        <span class="value small" id="info-game-id">—</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Moves Captured</span>
                         <span class="value" id="info-moves">0</span>
                     </div>
                     <div class="info-row">
-                        <span class="label">Orientation:</span>
-                        <span class="value" id="info-rotation">--&deg;</span>
+                        <span class="label">Orientation</span>
+                        <span class="value" id="info-rotation">—</span>
                     </div>
-                    <button id="btn-reset" class="btn danger full-width mt-1">Reset Session</button>
                 </div>
 
+                <!-- End game / result -->
+                <div class="panel" id="end-game-panel" style="display:none;">
+                    <h2>End Game</h2>
+                    <div class="result-buttons">
+                        <button class="btn result-btn" data-result="1-0">1-0 White wins</button>
+                        <button class="btn result-btn" data-result="0-1">0-1 Black wins</button>
+                        <button class="btn result-btn" data-result="1/2-1/2">½-½ Draw</button>
+                        <button class="btn result-btn secondary" data-result="*">* Ongoing</button>
+                    </div>
+                    <div id="result-display" class="result-display" style="display:none;"></div>
+                </div>
+
+                <!-- Controls -->
                 <div class="panel">
-                    <h2>Motion Mask Debug</h2>
+                    <button id="btn-reset" class="btn danger full-width">Reset Session</button>
+                </div>
+
+                <!-- Debug mask -->
+                <div class="panel">
+                    <h2>Motion Debug</h2>
                     <div class="mask-container">
                         <img id="debug-mask" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" alt="Motion Mask">
                     </div>

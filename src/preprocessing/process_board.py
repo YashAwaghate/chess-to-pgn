@@ -7,9 +7,8 @@ import shutil
 # CONFIGURATION
 SQUARE_SIZE = 50
 BOARD_SIZE = 8 * SQUARE_SIZE  # 400
-CANVAS_HEIGHT = 500           # Extra height to capture piece height
-BOARD_START_Y = 100           # The board grid starts at Y=100 in the warped image
-PIECE_HEAD_BUFFER = 60        # How many pixels above the square to look for the head
+CANVAS_HEIGHT = BOARD_SIZE    # 400 — no extra height, board fills the whole image
+BOARD_START_Y = 0             # Board grid starts at Y=0
 
 def auto_canny(image, sigma=0.33):
     """Calculates adaptive Canny thresholds based on the image median."""
@@ -21,8 +20,8 @@ def auto_canny(image, sigma=0.33):
 
 def preprocess_image(image_path, output_path=None, show=False, rotation=0):
     """
-    Reads an image, detects the chess board, warps it to a 400x500 view 
-    (shifted down to capture piece heads), and segments patches.
+    Reads an image, detects the chess board, warps it to a clean 400x400 view,
+    and segments into 64 square patches.
     """
     if not os.path.exists(image_path):
         print(f"Error: Image not found at {image_path}")
@@ -87,14 +86,13 @@ def preprocess_image(image_path, output_path=None, show=False, rotation=0):
         else:
              return None
 
-    # 4. Rectification with Vertical Offset
-    # Shift board down to Y=100 and apply Inset margin to remove notation
-    margin = 30.0 
+    # 4. Rectification — inset margin to remove board notation/border
+    margin = 30.0
     dst_points = np.array([
-        [-margin, BOARD_START_Y - margin],
-        [400 + margin, BOARD_START_Y - margin],
-        [400 + margin, 500 + margin],
-        [-margin, 500 + margin]
+        [-margin, -margin],
+        [400 + margin, -margin],
+        [400 + margin, 400 + margin],
+        [-margin, 400 + margin]
     ], dtype="float32")
     
     rect_points = order_points(grid_corners)
@@ -163,7 +161,7 @@ def cluster_hough_lines(lines):
     return merge_nearby(horizontals), merge_nearby(verticals)
 
 def segment_board(board_image, output_path, rotation=0):
-    """Slices the grid into 64 patches, capturing piece height by looking upward."""
+    """Slices the 400x400 board into 64 clean 50x50 patches."""
     base_dir = os.path.splitext(output_path)[0] + "_patches"
     if os.path.exists(base_dir): shutil.rmtree(base_dir) 
     os.makedirs(base_dir, exist_ok=True)
@@ -200,20 +198,16 @@ def segment_board(board_image, output_path, rotation=0):
                 
             square_name = f"{files[logical_file_idx]}{ranks[logical_rank_idx]}"
 
-            # The board grid starts at BOARD_START_Y (100)
-            y_base = BOARD_START_Y + (i * SQUARE_SIZE)
-            y_end = BOARD_START_Y + ((i + 1) * SQUARE_SIZE)
+            y_base = i * SQUARE_SIZE
+            y_end = (i + 1) * SQUARE_SIZE
             x_start = j * SQUARE_SIZE
             x_end = (j + 1) * SQUARE_SIZE
-            
-            # Capture piece heads by extending the crop upward into the sky area
-            y_extended = max(0, y_base - PIECE_HEAD_BUFFER)
-            
-            patch = board_image[y_extended:y_end, x_start:x_end]
-            
-            # Safety crop for sides/bottom to remove grid lines
+
+            patch = board_image[y_base:y_end, x_start:x_end]
+
+            # Trim edges to remove grid lines
             h, w = patch.shape[:2]
-            cropped = patch[0:h-internal_crop, internal_crop:w-internal_crop]
+            cropped = patch[internal_crop:h-internal_crop, internal_crop:w-internal_crop]
             
             # Normalize and resize back to 50x50 (the piece will be vertically scaled)
             normalized = cv2.normalize(cropped, None, 0, 255, cv2.NORM_MINMAX)
@@ -239,14 +233,13 @@ def determine_orientation(warped_board):
     internal_crop = 5
     for i in range(8):
         for j in range(8):
-            y_base = BOARD_START_Y + (i * SQUARE_SIZE)
-            y_end = BOARD_START_Y + ((i + 1) * SQUARE_SIZE)
+            y_base = i * SQUARE_SIZE
+            y_end = (i + 1) * SQUARE_SIZE
             x_start = j * SQUARE_SIZE
             x_end = (j + 1) * SQUARE_SIZE
-            y_ext = max(0, y_base - PIECE_HEAD_BUFFER)
-            patch = warped_board[y_ext:y_end, x_start:x_end]
+            patch = warped_board[y_base:y_end, x_start:x_end]
             hc, wc = patch.shape[:2]
-            cropped = patch[0:hc-internal_crop, internal_crop:wc-internal_crop]
+            cropped = patch[internal_crop:hc-internal_crop, internal_crop:wc-internal_crop]
             
             gray_patch = cv2.cvtColor(cropped, cv2.COLOR_BGR2GRAY)
             # Estimate piece brightness (assuming pieces occupy center of patch)
@@ -262,12 +255,11 @@ def determine_orientation(warped_board):
     is_white_at_bottom = bottom_ranks_intensity > top_ranks_intensity
     
     # 2. Square Parity Verification. Physical bottom right is patch (i=7, j=7)
-    # Check if the empty space (corners of the patch) is light or dark.
-    y_base = BOARD_START_Y + (7 * SQUARE_SIZE)
-    y_end = BOARD_START_Y + ((8) * SQUARE_SIZE)
+    y_base = 7 * SQUARE_SIZE
+    y_end = 8 * SQUARE_SIZE
     x_start = 7 * SQUARE_SIZE
     x_end = 8 * SQUARE_SIZE
-    h1_patch = warped_board[y_base:y_end, x_start:x_end] # only the board square, not sky
+    h1_patch = warped_board[y_base:y_end, x_start:x_end]
     gray_h1 = cv2.cvtColor(h1_patch, cv2.COLOR_BGR2GRAY)
     
     # Extract just the corners of the square to avoid piece interference
@@ -284,8 +276,8 @@ def determine_orientation(warped_board):
     # Estimate light vs dark square by thresholding (naive)
     # A better way is comparing h1 (7,7) to g1 (7,6)
     
-    y_base_g1 = BOARD_START_Y + (7 * SQUARE_SIZE)
-    y_end_g1 = BOARD_START_Y + ((8) * SQUARE_SIZE)
+    y_base_g1 = 7 * SQUARE_SIZE
+    y_end_g1 = 8 * SQUARE_SIZE
     x_start_g1 = 6 * SQUARE_SIZE
     x_end_g1 = 7 * SQUARE_SIZE
     g1_patch = warped_board[y_base_g1:y_end_g1, x_start_g1:x_end_g1]

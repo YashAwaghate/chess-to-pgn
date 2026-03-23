@@ -70,9 +70,8 @@ h1 {
     transition: all 0.3s ease;
 }
 
-.status-badge.calibrating { background: var(--border-color); color: white; }
-.status-badge.static { background: rgba(46, 160, 67, 0.2); color: var(--success); border: 1px solid var(--success); }
-.status-badge.moving { background: rgba(210, 153, 34, 0.2); color: var(--moving); border: 1px solid var(--moving); }
+.status-badge.static  { background: rgba(46, 160, 67, 0.2); color: var(--success); border: 1px solid var(--success); }
+.status-badge.moving  { background: rgba(210, 153, 34, 0.2); color: var(--moving); border: 1px solid var(--moving); }
 
 main {
     display: grid;
@@ -214,3 +213,112 @@ main {
 
 .full-width { width: 100%; }
 .mt-1 { margin-top: 1rem; }
+
+/* ── Setup panel ───────────────────────────────────────── */
+.setup-panel {
+    background: var(--panel-bg);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 2rem;
+}
+
+.setup-panel h2 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: white;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.setup-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 1.2rem;
+    margin-bottom: 1.8rem;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.form-group label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.form-group input,
+.form-group select {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.55rem 0.8rem;
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.form-group input::placeholder { color: var(--text-muted); }
+
+.form-group input:focus,
+.form-group select:focus {
+    border-color: var(--accent);
+}
+
+.form-group input.input-error {
+    border-color: var(--danger);
+}
+
+.form-group select option { background: #1c2128; }
+
+.setup-actions { display: flex; justify-content: flex-end; }
+
+.btn.large {
+    padding: 0.75rem 2rem;
+    font-size: 1rem;
+    border-radius: 8px;
+}
+
+/* ── Result buttons ────────────────────────────────────── */
+.result-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem;
+}
+
+.result-btn {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
+    font-size: 0.82rem;
+    padding: 0.5rem 0.4rem;
+}
+.result-btn:hover:not(:disabled) { background: rgba(255,255,255,0.12); }
+.result-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.result-display {
+    margin-top: 0.8rem;
+    padding: 0.6rem 0.8rem;
+    background: rgba(46, 160, 67, 0.15);
+    border: 1px solid var(--success);
+    border-radius: 6px;
+    color: var(--success);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+/* ── Sidebar value sizes ───────────────────────────────── */
+.info-row .value.small { font-size: 0.82rem; word-break: break-all; }
+
+/* ── Status badges ─────────────────────────────────────── */
+.status-badge.setup        { background: var(--border-color); color: white; }
+.status-badge.calibrating  { background: var(--border-color); color: white; }
+.status-badge.orientation  { background: rgba(88, 166, 255, 0.2); color: var(--accent); border: 1px solid var(--accent); }
