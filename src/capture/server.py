@@ -260,16 +260,18 @@ def detect_board_grid(warped: np.ndarray) -> dict:
 
 
 def write_game_info():
-    """Write (or update) game_info.json locally and sync to S3."""
-    save_dir = os.path.join(project_root, "data", "sessions", session.game_id)
-    os.makedirs(save_dir, exist_ok=True)
+    """Write (or update) game_info.json — to S3 if configured, else locally."""
     data = dict(session.game_info)
     data["rotation"]    = session.rotation_angle
     data["total_moves"] = max(0, session.move_number - 1)
-    local_path = os.path.join(save_dir, "game_info.json")
-    with open(local_path, "w") as f:
-        json.dump(data, f, indent=2)
-    _s3_upload(local_path, f"{S3_PREFIX}/{session.game_id}/game_info.json")
+    json_bytes = json.dumps(data, indent=2).encode()
+    s3_key = f"{S3_PREFIX}/{session.game_id}/game_info.json"
+    if not _s3_put(s3_key, json_bytes, "application/json"):
+        # Fallback: local save (development / no S3)
+        save_dir = os.path.join(project_root, "data", "sessions", session.game_id)
+        os.makedirs(save_dir, exist_ok=True)
+        with open(os.path.join(save_dir, "game_info.json"), "w") as f:
+            f.write(json_bytes.decode())
 
 
 # ──────────────────────────── Endpoints ──────────────────────────────────────
@@ -432,26 +434,31 @@ def process_frame(data: FrameData):
     }
 
 
-def _s3_upload(local_path: str, s3_key: str):
-    """Best-effort S3 upload — logs errors but never raises."""
+def _s3_put(s3_key: str, data: bytes, content_type: str = "image/jpeg") -> bool:
+    """Upload bytes directly to S3 (no temp file). Returns True on success."""
     if not _s3_client or not S3_BUCKET:
-        return
+        return False
     try:
-        _s3_client.upload_file(local_path, S3_BUCKET, s3_key)
+        _s3_client.put_object(Bucket=S3_BUCKET, Key=s3_key, Body=data, ContentType=content_type)
         logger.info(f"S3 ↑ s3://{S3_BUCKET}/{s3_key}")
+        return True
     except Exception as e:
         logger.error(f"S3 upload failed for {s3_key}: {e}")
+        return False
 
 
 def save_and_upload(frame: np.ndarray):
     filename = f"{session.game_id}_{session.move_number:03d}.jpg"
-    save_dir = os.path.join(project_root, "data", "sessions", session.game_id)
-    os.makedirs(save_dir, exist_ok=True)
-    local_path = os.path.join(save_dir, filename)
-    cv2.imwrite(local_path, frame)
+    _, buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 92])
+    img_bytes = buf.tobytes()
+    s3_key = f"{S3_PREFIX}/{session.game_id}/{filename}"
+    if not _s3_put(s3_key, img_bytes):
+        # Fallback: local save (development / no S3)
+        save_dir = os.path.join(project_root, "data", "sessions", session.game_id)
+        os.makedirs(save_dir, exist_ok=True)
+        cv2.imwrite(os.path.join(save_dir, filename), frame)
+        logger.info(f"Saved locally: {filename}")
     write_game_info()
-    _s3_upload(local_path, f"{S3_PREFIX}/{session.game_id}/{filename}")
-    logger.info(f"Saved: {filename}")
     session.move_number += 1
 
 
