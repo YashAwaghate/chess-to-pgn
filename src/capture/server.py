@@ -1,4 +1,8 @@
 import os
+# Suppress MediaPipe / TensorFlow C++ warnings (W0000 noise) before any imports
+os.environ.setdefault("GLOG_minloglevel", "2")
+os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
+
 import cv2
 import numpy as np
 import time
@@ -6,15 +10,15 @@ import uuid
 import base64
 import json
 import logging
+import sys
 from datetime import date
 from enum import Enum
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
-import sys
 
 # Load .env file when running locally (no-op in production where env vars are injected)
 try:
@@ -100,8 +104,21 @@ session = SessionState()
 
 log_dir = os.path.join(project_root, "logs")
 os.makedirs(log_dir, exist_ok=True)
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Stream to stdout so Railway shows app logs in the same colour as uvicorn (not red)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    stream=sys.stdout,
+)
 logger = logging.getLogger(__name__)
+
+# ── Startup: log S3 configuration status clearly ─────────────────────────────
+if S3_BUCKET and _s3_client:
+    logger.info(f"S3 configured → s3://{S3_BUCKET}/{S3_PREFIX}/")
+elif S3_BUCKET and not _s3_client:
+    logger.warning("S3_BUCKET is set but boto3 client failed to initialise — uploads will be skipped.")
+else:
+    logger.warning("S3 not configured (S3_BUCKET env var missing) — images will be saved locally only.")
 
 
 # ──────────────────────────── Pydantic models ────────────────────────────────
@@ -462,6 +479,89 @@ def save_and_upload(frame: np.ndarray):
     session.move_number += 1
 
 
+# ──────────────────────────── Gallery API (S3 viewer) ────────────────────────
+
+@app.get("/api/gallery/sessions")
+def gallery_list_sessions():
+    """List all session folders in S3 (or local fallback)."""
+    if _s3_client and S3_BUCKET:
+        try:
+            paginator = _s3_client.get_paginator("list_objects_v2")
+            sessions = set()
+            for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=f"{S3_PREFIX}/", Delimiter="/"):
+                for cp in page.get("CommonPrefixes", []):
+                    folder = cp["Prefix"].rstrip("/").split("/")[-1]
+                    sessions.add(folder)
+            return {"source": "s3", "sessions": sorted(sessions, reverse=True)}
+        except Exception as e:
+            logger.error(f"S3 list error: {e}")
+            return JSONResponse(status_code=500, content={"message": str(e)})
+
+    # Fallback: local filesystem
+    local_dir = os.path.join(project_root, "data", "sessions")
+    if os.path.isdir(local_dir):
+        folders = sorted(
+            [d for d in os.listdir(local_dir) if os.path.isdir(os.path.join(local_dir, d))],
+            reverse=True,
+        )
+        return {"source": "local", "sessions": folders}
+    return {"source": "local", "sessions": []}
+
+
+@app.get("/api/gallery/{session_id}")
+def gallery_get_session(session_id: str):
+    """Return game_info + image list for a session."""
+    if _s3_client and S3_BUCKET:
+        try:
+            prefix = f"{S3_PREFIX}/{session_id}/"
+            resp = _s3_client.list_objects_v2(Bucket=S3_BUCKET, Prefix=prefix)
+            images = []
+            game_info = None
+            for obj in resp.get("Contents", []):
+                name = obj["Key"].split("/")[-1]
+                if name.endswith(".jpg"):
+                    images.append(name)
+                elif name == "game_info.json":
+                    body = _s3_client.get_object(Bucket=S3_BUCKET, Key=obj["Key"])["Body"].read()
+                    game_info = json.loads(body)
+            return {"session_id": session_id, "game_info": game_info, "images": sorted(images)}
+        except Exception as e:
+            logger.error(f"S3 session read error: {e}")
+            return JSONResponse(status_code=500, content={"message": str(e)})
+
+    # Fallback: local
+    local_dir = os.path.join(project_root, "data", "sessions", session_id)
+    if not os.path.isdir(local_dir):
+        return JSONResponse(status_code=404, content={"message": "Session not found"})
+    images = sorted(f for f in os.listdir(local_dir) if f.endswith(".jpg"))
+    game_info = None
+    info_path = os.path.join(local_dir, "game_info.json")
+    if os.path.exists(info_path):
+        with open(info_path) as f:
+            game_info = json.load(f)
+    return {"session_id": session_id, "game_info": game_info, "images": images}
+
+
+@app.get("/api/gallery/{session_id}/{filename}")
+def gallery_get_image(session_id: str, filename: str):
+    """Stream a single image (from S3 or local)."""
+    if _s3_client and S3_BUCKET:
+        try:
+            key = f"{S3_PREFIX}/{session_id}/{filename}"
+            obj = _s3_client.get_object(Bucket=S3_BUCKET, Key=key)
+            return Response(content=obj["Body"].read(), media_type="image/jpeg")
+        except Exception as e:
+            return JSONResponse(status_code=404, content={"message": str(e)})
+
+    # Fallback: local
+    local_path = os.path.join(project_root, "data", "sessions", session_id, filename)
+    if os.path.exists(local_path):
+        with open(local_path, "rb") as f:
+            return Response(content=f.read(), media_type="image/jpeg")
+    return JSONResponse(status_code=404, content={"message": "Image not found"})
+
+
+# ──────────────────────────── Static files (must be last) ────────────────────
 static_dir = os.path.join(script_dir, "static")
 os.makedirs(static_dir, exist_ok=True)
 app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")

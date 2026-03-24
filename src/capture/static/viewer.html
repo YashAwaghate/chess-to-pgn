@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Capture — Gallery</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --accent-hover: #1f6feb;
+            --success: #2ea043;
+            --radius: 10px;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        /* ── Layout ─────────────────────────────────────────── */
+        .top-bar {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 0.9rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .top-bar h1 {
+            font-size: 1.15rem;
+            font-weight: 600;
+            background: linear-gradient(90deg, #fff, #8b949e);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .top-bar .source-badge {
+            font-size: 0.7rem;
+            padding: 0.2rem 0.55rem;
+            border-radius: 12px;
+            background: rgba(88,166,255,0.15);
+            color: var(--accent);
+            border: 1px solid var(--accent);
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        .top-bar .back-link {
+            margin-left: auto;
+            font-size: 0.85rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1.5rem;
+        }
+
+        /* ── Session list ───────────────────────────────────── */
+        .session-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1rem;
+        }
+        .session-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.2rem;
+            cursor: pointer;
+            transition: border-color 0.2s, transform 0.15s;
+        }
+        .session-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+        .session-card h3 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 0.4rem;
+            font-family: monospace;
+        }
+        .session-card .meta {
+            font-size: 0.8rem;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+        .session-card .meta strong { color: var(--text); }
+
+        /* ── Session detail ─────────────────────────────────── */
+        .detail-header {
+            margin-bottom: 1.5rem;
+        }
+        .detail-header h2 {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 0.3rem;
+        }
+        .detail-header .sub {
+            font-size: 0.88rem;
+            color: var(--muted);
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 0.6rem;
+            margin-bottom: 1.5rem;
+        }
+        .info-chip {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.6rem 0.9rem;
+        }
+        .info-chip .label { font-size: 0.7rem; text-transform: uppercase; color: var(--muted); margin-bottom: 0.15rem; }
+        .info-chip .val   { font-size: 0.95rem; color: #fff; font-weight: 600; }
+
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 0.75rem;
+        }
+        .image-cell {
+            position: relative;
+            background: #000;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: border-color 0.2s;
+            aspect-ratio: 1;
+        }
+        .image-cell:hover { border-color: var(--accent); }
+        .image-cell img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .image-cell .tag {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0,0,0,0.72);
+            padding: 0.3rem 0.5rem;
+            font-size: 0.72rem;
+            color: var(--muted);
+            text-align: center;
+            font-family: monospace;
+        }
+
+        /* ── Lightbox ───────────────────────────────────────── */
+        .lightbox {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.92);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        .lightbox.open { display: flex; }
+        .lightbox img {
+            max-width: 90vw;
+            max-height: 80vh;
+            border-radius: 8px;
+            box-shadow: 0 0 40px rgba(0,0,0,0.6);
+        }
+        .lightbox .caption {
+            color: var(--muted);
+            font-size: 0.85rem;
+            font-family: monospace;
+        }
+        .lightbox .nav-row {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        .lightbox button {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: #fff;
+            padding: 0.5rem 1.2rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+        .lightbox button:hover { background: rgba(255,255,255,0.2); }
+        .lightbox .close-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1.5rem;
+            font-size: 1.8rem;
+            background: none;
+            border: none;
+            color: #fff;
+            cursor: pointer;
+            opacity: 0.7;
+        }
+        .lightbox .close-btn:hover { opacity: 1; }
+
+        .empty {
+            text-align: center;
+            color: var(--muted);
+            padding: 4rem 1rem;
+            font-size: 1rem;
+        }
+        .spinner {
+            text-align: center;
+            padding: 4rem;
+            color: var(--muted);
+        }
+
+        @media (max-width: 600px) {
+            .container { padding: 0.75rem; }
+            .session-list { grid-template-columns: 1fr; }
+            .image-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+            .info-grid { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="top-bar">
+    <h1>&#9823; Gallery</h1>
+    <span class="source-badge" id="source-badge">—</span>
+    <a href="/" class="back-link">&larr; Capture App</a>
+</div>
+
+<div class="container" id="app">
+    <div class="spinner" id="loading">Loading sessions…</div>
+</div>
+
+<!-- Lightbox overlay -->
+<div class="lightbox" id="lightbox">
+    <button class="close-btn" id="lb-close">&times;</button>
+    <img id="lb-img" src="" alt="preview">
+    <div class="nav-row">
+        <button id="lb-prev">&larr; Prev</button>
+        <span class="caption" id="lb-caption"></span>
+        <button id="lb-next">Next &rarr;</button>
+    </div>
+</div>
+
+<script>
+const appEl      = document.getElementById('app');
+const loadingEl  = document.getElementById('loading');
+const sourceBadge= document.getElementById('source-badge');
+const lightbox   = document.getElementById('lightbox');
+const lbImg      = document.getElementById('lb-img');
+const lbCaption  = document.getElementById('lb-caption');
+
+let currentImages = [];
+let currentIdx    = 0;
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function moveLabel(filename) {
+    // SESSION_001_AB12_003.jpg → Move 3
+    const m = filename.match(/_(\d+)\.jpg$/);
+    if (!m) return filename;
+    const n = parseInt(m[1], 10);
+    return n === 0 ? 'Initial board' : `Move ${n}`;
+}
+
+// ── Session list ─────────────────────────────────────────────────────────────
+
+async function loadSessionList() {
+    try {
+        const res  = await fetch('/api/gallery/sessions');
+        const data = await res.json();
+        sourceBadge.textContent = data.source === 's3' ? 'S3' : 'LOCAL';
+        loadingEl.remove();
+
+        if (!data.sessions.length) {
+            appEl.innerHTML = '<div class="empty">No sessions found. Play a game first!</div>';
+            return;
+        }
+
+        // Fetch info for each session in parallel
+        const infos = await Promise.all(
+            data.sessions.map(sid =>
+                fetch(`/api/gallery/${sid}`).then(r => r.json()).catch(() => null)
+            )
+        );
+
+        let html = '<div class="session-list">';
+        data.sessions.forEach((sid, i) => {
+            const info = infos[i]?.game_info;
+            const imgCount = infos[i]?.images?.length || 0;
+            html += `
+                <div class="session-card" onclick="loadSession('${sid}')">
+                    <h3>${sid}</h3>
+                    <div class="meta">
+                        ${info ? `
+                            <strong>${info.white || '?'}</strong> vs <strong>${info.black || '?'}</strong><br>
+                            ${info.date || '—'} &middot; ${info.result || '*'} &middot; ${info.time_control || ''}<br>
+                        ` : ''}
+                        ${imgCount} image${imgCount !== 1 ? 's' : ''}
+                    </div>
+                </div>`;
+        });
+        html += '</div>';
+        appEl.innerHTML = html;
+    } catch (e) {
+        loadingEl.textContent = 'Failed to load sessions: ' + e.message;
+    }
+}
+
+// ── Session detail ───────────────────────────────────────────────────────────
+
+async function loadSession(sid) {
+    appEl.innerHTML = '<div class="spinner">Loading…</div>';
+    try {
+        const res  = await fetch(`/api/gallery/${sid}`);
+        const data = await res.json();
+        const info = data.game_info || {};
+        currentImages = data.images || [];
+
+        let html = `
+            <div class="detail-header">
+                <h2>${info.white || '?'} vs ${info.black || '?'}</h2>
+                <div class="sub">
+                    <a href="#" onclick="loadSessionList(); return false;">&larr; All sessions</a>
+                    &nbsp;&middot;&nbsp; ${sid}
+                </div>
+            </div>
+            <div class="info-grid">
+                <div class="info-chip"><div class="label">Date</div><div class="val">${info.date || '—'}</div></div>
+                <div class="info-chip"><div class="label">Result</div><div class="val">${info.result || '*'}</div></div>
+                <div class="info-chip"><div class="label">Time Control</div><div class="val">${info.time_control || '—'}</div></div>
+                <div class="info-chip"><div class="label">Event</div><div class="val">${info.event || '—'}</div></div>
+                <div class="info-chip"><div class="label">Site</div><div class="val">${info.site || '—'}</div></div>
+                <div class="info-chip"><div class="label">Rotation</div><div class="val">${info.rotation != null ? info.rotation + '°' : '—'}</div></div>
+                <div class="info-chip"><div class="label">Total Moves</div><div class="val">${info.total_moves != null ? info.total_moves : '—'}</div></div>
+            </div>`;
+
+        if (!currentImages.length) {
+            html += '<div class="empty">No images captured in this session.</div>';
+        } else {
+            html += '<div class="image-grid">';
+            currentImages.forEach((img, i) => {
+                const url = `/api/gallery/${sid}/${img}`;
+                html += `
+                    <div class="image-cell" onclick="openLightbox('${sid}', ${i})">
+                        <img src="${url}" alt="${img}" loading="lazy">
+                        <div class="tag">${moveLabel(img)}</div>
+                    </div>`;
+            });
+            html += '</div>';
+        }
+        appEl.innerHTML = html;
+    } catch (e) {
+        appEl.innerHTML = '<div class="empty">Failed to load session: ' + e.message + '</div>';
+    }
+}
+
+// ── Lightbox ─────────────────────────────────────────────────────────────────
+
+let lbSessionId = '';
+
+function openLightbox(sid, idx) {
+    lbSessionId = sid;
+    currentIdx  = idx;
+    showLightboxImage();
+    lightbox.classList.add('open');
+}
+
+function showLightboxImage() {
+    const img = currentImages[currentIdx];
+    lbImg.src     = `/api/gallery/${lbSessionId}/${img}`;
+    lbCaption.textContent = `${moveLabel(img)}  (${currentIdx + 1} / ${currentImages.length})`;
+}
+
+document.getElementById('lb-close').onclick = () => lightbox.classList.remove('open');
+document.getElementById('lb-prev').onclick  = () => { currentIdx = (currentIdx - 1 + currentImages.length) % currentImages.length; showLightboxImage(); };
+document.getElementById('lb-next').onclick  = () => { currentIdx = (currentIdx + 1) % currentImages.length; showLightboxImage(); };
+
+lightbox.addEventListener('click', e => { if (e.target === lightbox) lightbox.classList.remove('open'); });
+document.addEventListener('keydown', e => {
+    if (!lightbox.classList.contains('open')) return;
+    if (e.key === 'Escape')      lightbox.classList.remove('open');
+    if (e.key === 'ArrowLeft')   { currentIdx = (currentIdx - 1 + currentImages.length) % currentImages.length; showLightboxImage(); }
+    if (e.key === 'ArrowRight')  { currentIdx = (currentIdx + 1) % currentImages.length; showLightboxImage(); }
+});
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+loadSessionList();
+</script>
+</body>
+</html>
