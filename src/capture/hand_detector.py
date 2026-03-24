@@ -105,10 +105,20 @@ class HandDetector:
         hand_present = len(landmarks_px) > 0
         over_board = False
 
+        # Check only fingertips (4,8,12,16,20) + palm center per hand.
+        # Require ≥2 key points inside the board polygon to trigger over_board.
+        _FINGERTIP_INDICES = [4, 8, 12, 16, 20]
         if hand_present and board_corners_px is not None:
             corners = np.array(board_corners_px, dtype=np.float32).reshape(-1, 1, 2)
-            for px, py in landmarks_px:
-                if cv2.pointPolygonTest(corners, (float(px), float(py)), False) >= 0:
+            for hand_lms in result.hand_landmarks:
+                pts = [(int(lm.x * w), int(lm.y * h)) for lm in hand_lms]
+                palm = ((pts[0][0] + pts[9][0]) // 2, (pts[0][1] + pts[9][1]) // 2)
+                key_pts = [pts[i] for i in _FINGERTIP_INDICES] + [palm]
+                inside = sum(
+                    1 for px, py in key_pts
+                    if cv2.pointPolygonTest(corners, (float(px), float(py)), False) >= 0
+                )
+                if inside >= 2:
                     over_board = True
                     break
 

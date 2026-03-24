@@ -329,6 +329,37 @@ main {
     font-weight: 600;
 }
 
+/* ── Orientation 4-button picker ──────────────────────────── */
+.orient-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.45rem;
+    width: 100%;
+}
+
+.orient-btn {
+    background: rgba(255,255,255,0.06);
+    border: 2px solid var(--border-color);
+    color: var(--text-main);
+    font-size: 0.82rem;
+    padding: 0.6rem 0.4rem;
+    min-height: 44px;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.orient-btn:hover { background: rgba(255,255,255,0.12); }
+.orient-btn.selected {
+    border-color: var(--accent);
+    background: rgba(88,166,255,0.15);
+    color: var(--accent);
+    font-weight: 600;
+}
+.orient-btn.suggested::after {
+    content: ' ★';
+    color: var(--moving);
+}
+
 /* ── Mobile responsive ────────────────────────────────────── */
 @media (max-width: 768px) {
     .container {

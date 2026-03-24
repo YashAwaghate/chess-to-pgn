@@ -89,6 +89,7 @@ btnStartSession.addEventListener('click', async () => {
                 round:        inpRound.value.trim() || '-',
                 time_control: inpTc.value,
                 notes:        inpNotes.value.trim(),
+                save_raw:     document.getElementById('inp-save-raw').checked,
             }),
         });
         const data = await res.json();
@@ -376,7 +377,7 @@ btnCalibrate.addEventListener('click', async () => {
         });
         const data = await res.json();
         if (data.status === 'success') {
-            showOrientationStep(data.warped_b64, data.grid);
+            showOrientationStep(data.warped_b64, data.grid, data.suggested_a1);
         } else {
             alert('Calibration failed: ' + (data.message || ''));
             btnCalibrate.innerText = 'Calibrate';
@@ -389,25 +390,9 @@ btnCalibrate.addEventListener('click', async () => {
     }
 });
 
-// ─── Step 2: a1 orientation ──────────────────────────────────────────────────
+// ─── Step 2: a1 orientation (4-button picker) ───────────────────────────────
 
-function pixelToCell(imgX, imgY) {
-    const xs = gridLines.x_lines;
-    const ys = gridLines.y_lines;
-    let col = 0, row = 0;
-    for (let i = 0; i < 8; i++) { if (imgX >= xs[i]) col = i; }
-    for (let i = 0; i < 8; i++) { if (imgY >= ys[i]) row = i; }
-    return { col, row };
-}
-
-function snapToCorner(col, row) {
-    const corners = [{ col: 0, row: 0 }, { col: 7, row: 0 }, { col: 0, row: 7 }, { col: 7, row: 7 }];
-    return corners.reduce((best, c) => {
-        const d  = Math.abs(c.col - col) + Math.abs(c.row - row);
-        const bd = Math.abs(best.col - col) + Math.abs(best.row - row);
-        return d < bd ? c : best;
-    });
-}
+const orientBtns = document.querySelectorAll('.orient-btn');
 
 function drawOrientationGrid(highlighted) {
     const xs = gridLines ? gridLines.x_lines : [...Array(9)].map((_, i) => i * 50);
@@ -421,6 +406,17 @@ function drawOrientationGrid(highlighted) {
 
     octx.clearRect(0, 0, cW, cH);
 
+    // Draw light grid overlay
+    octx.strokeStyle = 'rgba(88, 166, 255, 0.5)';
+    octx.lineWidth   = 1;
+    xs.forEach(x => {
+        octx.beginPath(); octx.moveTo(x * sx, 0); octx.lineTo(x * sx, cH); octx.stroke();
+    });
+    ys.forEach(y => {
+        octx.beginPath(); octx.moveTo(0, y * sy); octx.lineTo(cW, y * sy); octx.stroke();
+    });
+
+    // Highlight selected a1 corner
     if (highlighted) {
         const cx0 = xs[highlighted.col]     * sx;
         const cx1 = xs[highlighted.col + 1] * sx;
@@ -429,84 +425,72 @@ function drawOrientationGrid(highlighted) {
         octx.fillStyle = 'rgba(46, 160, 67, 0.55)';
         octx.fillRect(cx0, cy0, cx1 - cx0, cy1 - cy0);
         octx.fillStyle    = '#fff';
-        octx.font         = `bold ${Math.round(Math.min(cx1 - cx0, cy1 - cy0) * 0.3)}px sans-serif`;
+        octx.font         = `bold ${Math.round(Math.min(cx1 - cx0, cy1 - cy0) * 0.35)}px sans-serif`;
         octx.textAlign    = 'center';
         octx.textBaseline = 'middle';
         octx.fillText('a1', (cx0 + cx1) / 2, (cy0 + cy1) / 2);
     }
-
-    octx.strokeStyle = 'rgba(88, 166, 255, 0.7)';
-    octx.lineWidth   = 1.5;
-    xs.forEach(x => {
-        octx.beginPath(); octx.moveTo(x * sx, 0); octx.lineTo(x * sx, cH); octx.stroke();
-    });
-    ys.forEach(y => {
-        octx.beginPath(); octx.moveTo(0, y * sy); octx.lineTo(cW, y * sy); octx.stroke();
-    });
-
-    const cornerLabels = [
-        { col: 0, row: 0, text: 'TL' }, { col: 7, row: 0, text: 'TR' },
-        { col: 0, row: 7, text: 'BL' }, { col: 7, row: 7, text: 'BR' },
-    ];
-    const labelSize = Math.round(Math.min(cW, cH) / 8 * 0.26);
-    octx.fillStyle    = 'rgba(255,255,255,0.45)';
-    octx.font         = `${labelSize}px sans-serif`;
-    octx.textAlign    = 'center';
-    octx.textBaseline = 'middle';
-    cornerLabels.forEach(l => {
-        if (highlighted && l.col === highlighted.col && l.row === highlighted.row) return;
-        const mx = (xs[l.col] + xs[l.col + 1]) / 2 * sx;
-        const my = (ys[l.row] + ys[l.row + 1]) / 2 * sy;
-        octx.fillText(l.text, mx, my);
-    });
-    octx.textAlign    = 'left';
-    octx.textBaseline = 'alphabetic';
 }
 
-function showOrientationStep(warpedB64, grid) {
+function selectOrientBtn(col, row) {
+    selectedA1 = { col, row };
+    btnConfirmA1.disabled = false;
+    orientBtns.forEach(b => {
+        const bc = parseInt(b.dataset.col);
+        const br = parseInt(b.dataset.row);
+        b.classList.toggle('selected', bc === col && br === row);
+    });
+    orientCanvas.width  = warpedImg.naturalWidth  || 400;
+    orientCanvas.height = warpedImg.naturalHeight || 400;
+    drawOrientationGrid(selectedA1);
+    const names = { '0,7': 'Bottom-Left', '7,7': 'Bottom-Right', '0,0': 'Top-Left', '7,0': 'Top-Right' };
+    orientHint.innerHTML = `a1 at <strong>${names[`${col},${row}`]}</strong> — confirm?`;
+}
+
+orientBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        selectOrientBtn(parseInt(btn.dataset.col), parseInt(btn.dataset.row));
+    });
+});
+
+function showOrientationStep(warpedB64, grid, suggestedA1) {
     gridLines = grid;
     video.style.display         = 'none';
     overlayCanvas.style.display = 'none';
     calibControls.style.display = 'none';
-    orientPanel.style.display   = 'block';
+    orientPanel.style.display   = 'flex';
     warpedImg.src = warpedB64;
     warpedImg.onload = () => {
         orientCanvas.width  = warpedImg.naturalWidth;
         orientCanvas.height = warpedImg.naturalHeight;
-        drawOrientationGrid(null);
+        // Mark suggested button
+        orientBtns.forEach(b => {
+            b.classList.remove('suggested', 'selected');
+        });
+        if (suggestedA1) {
+            orientBtns.forEach(b => {
+                if (parseInt(b.dataset.col) === suggestedA1.col &&
+                    parseInt(b.dataset.row) === suggestedA1.row) {
+                    b.classList.add('suggested');
+                }
+            });
+            // Pre-select the suggestion
+            selectOrientBtn(suggestedA1.col, suggestedA1.row);
+        } else {
+            drawOrientationGrid(null);
+        }
     };
     selectedA1             = null;
     btnConfirmA1.disabled  = true;
-    btnConfirmA1.innerText = 'Confirm a1';
-    orientHint.innerHTML   = 'Tap the <strong>a1</strong> square (bottom-left from White\'s view)';
+    btnConfirmA1.innerText = 'Confirm';
+    orientHint.innerHTML   = 'Where is <strong>a1</strong>? (White\'s queen-side rook)';
     updateStatusBadge('ORIENTATION');
+    // Re-select after onload sets it
+    if (suggestedA1) {
+        selectedA1 = { col: suggestedA1.col, row: suggestedA1.row };
+        btnConfirmA1.disabled = false;
+    }
 }
-
-function handleOrientSelect(clientX, clientY) {
-    const rect = orientCanvas.getBoundingClientRect();
-    const imgX = (clientX - rect.left) * (warpedImg.naturalWidth  / rect.width);
-    const imgY = (clientY - rect.top)  * (warpedImg.naturalHeight / rect.height);
-
-    const cell = pixelToCell(imgX, imgY);
-    selectedA1 = snapToCorner(cell.col, cell.row);
-    btnConfirmA1.disabled = false;
-
-    orientCanvas.width  = warpedImg.naturalWidth;
-    orientCanvas.height = warpedImg.naturalHeight;
-    drawOrientationGrid(selectedA1);
-
-    const names = { '0,7': 'Bottom-Left', '7,7': 'Bottom-Right', '0,0': 'Top-Left', '7,0': 'Top-Right' };
-    orientHint.innerHTML = `a1 at <strong>${names[`${selectedA1.col},${selectedA1.row}`]}</strong> — confirm?`;
-}
-
-orientCanvas.addEventListener('mousedown', e => {
-    handleOrientSelect(e.clientX, e.clientY);
-});
-orientCanvas.addEventListener('touchstart', e => {
-    const t = e.touches[0];
-    handleOrientSelect(t.clientX, t.clientY);
-    e.preventDefault();
-}, { passive: false });
 
 btnConfirmA1.addEventListener('click', async () => {
     if (!selectedA1) return;
@@ -531,12 +515,12 @@ btnConfirmA1.addEventListener('click', async () => {
         } else {
             alert('Orientation failed: ' + (data.message || ''));
             btnConfirmA1.disabled  = false;
-            btnConfirmA1.innerText = 'Confirm a1';
+            btnConfirmA1.innerText = 'Confirm';
         }
     } catch (e) {
         console.error(e);
         btnConfirmA1.disabled  = false;
-        btnConfirmA1.innerText = 'Confirm a1';
+        btnConfirmA1.innerText = 'Confirm';
     }
 });
 
@@ -640,11 +624,15 @@ btnReset.addEventListener('click', async () => {
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 fetchState().then(data => {
     if (data.state === 'STATIC' || data.state === 'MOVING') {
+        // Reconnect to active session
         setupPanel.style.display   = 'none';
         gamePanel.style.display    = '';
         isCalibrated               = true;
         if (data.game_info) populateGameInfo(data.game_info);
         endGamePanel.style.display = '';
         initCamera().then(startSessionLoop);
+    } else if (data.state === 'CALIBRATING' || data.state === 'ORIENTATION') {
+        // Stale mid-calibration — reset and start fresh
+        fetch('/api/reset', { method: 'POST' });
     }
 });

@@ -326,6 +326,10 @@ async function loadSessionList() {
 
 // ── Session detail ───────────────────────────────────────────────────────────
 
+let sessionRawImages = [];
+let sessionHasSubfolders = false;
+let currentViewMode = 'warped';
+
 async function loadSession(sid) {
     appEl.innerHTML = '<div class="spinner">Loading…</div>';
     try {
@@ -333,6 +337,9 @@ async function loadSession(sid) {
         const data = await res.json();
         const info = data.game_info || {};
         currentImages = data.images || [];
+        sessionRawImages = data.raw_images || [];
+        sessionHasSubfolders = data.has_subfolders || false;
+        currentViewMode = 'warped';
 
         let html = `
             <div class="detail-header">
@@ -352,23 +359,58 @@ async function loadSession(sid) {
                 <div class="info-chip"><div class="label">Total Moves</div><div class="val">${info.total_moves != null ? info.total_moves : '—'}</div></div>
             </div>`;
 
-        if (!currentImages.length) {
-            html += '<div class="empty">No images captured in this session.</div>';
-        } else {
-            html += '<div class="image-grid">';
-            currentImages.forEach((img, i) => {
-                const url = `/api/gallery/${sid}/${img}`;
-                html += `
-                    <div class="image-cell" onclick="openLightbox('${sid}', ${i})">
-                        <img src="${url}" alt="${img}" loading="lazy">
-                        <div class="tag">${moveLabel(img)}</div>
-                    </div>`;
-            });
-            html += '</div>';
+        // Show Warped/Raw toggle only when raw images exist
+        if (sessionRawImages.length > 0) {
+            html += `<div style="margin-bottom:0.75rem; display:flex; gap:0.5rem;">
+                <button id="btn-view-warped" onclick="switchView('${sid}','warped')"
+                    style="padding:0.4rem 1rem; border-radius:6px; border:1px solid var(--accent); background:rgba(88,166,255,0.15); color:var(--accent); font-weight:600; cursor:pointer;">Warped</button>
+                <button id="btn-view-raw" onclick="switchView('${sid}','raw')"
+                    style="padding:0.4rem 1rem; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--muted); cursor:pointer;">Raw</button>
+            </div>`;
         }
+
+        html += renderImageGrid(sid, currentImages, sessionHasSubfolders ? 'warped' : null);
         appEl.innerHTML = html;
     } catch (e) {
         appEl.innerHTML = '<div class="empty">Failed to load session: ' + e.message + '</div>';
+    }
+}
+
+function renderImageGrid(sid, images, imageType) {
+    if (!images.length) return '<div class="empty">No images captured in this session.</div>';
+    let html = '<div class="image-grid" id="image-grid">';
+    images.forEach((img, i) => {
+        const url = imageType ? `/api/gallery/${sid}/${imageType}/${img}` : `/api/gallery/${sid}/${img}`;
+        html += `
+            <div class="image-cell" onclick="openLightbox('${sid}', ${i})">
+                <img src="${url}" alt="${img}" loading="lazy">
+                <div class="tag">${moveLabel(img)}</div>
+            </div>`;
+    });
+    html += '</div>';
+    return html;
+}
+
+function switchView(sid, mode) {
+    currentViewMode = mode;
+    const imgs = mode === 'raw' ? sessionRawImages : currentImages;
+    const imageType = sessionHasSubfolders ? mode : null;
+    const gridEl = document.getElementById('image-grid');
+    if (gridEl) {
+        const temp = document.createElement('div');
+        temp.innerHTML = renderImageGrid(sid, imgs, imageType);
+        gridEl.replaceWith(temp.firstElementChild);
+    }
+    const btnW = document.getElementById('btn-view-warped');
+    const btnR = document.getElementById('btn-view-raw');
+    if (btnW && btnR) {
+        if (mode === 'warped') {
+            btnW.style.background = 'rgba(88,166,255,0.15)'; btnW.style.color = 'var(--accent)'; btnW.style.borderColor = 'var(--accent)'; btnW.style.fontWeight = '600';
+            btnR.style.background = 'transparent'; btnR.style.color = 'var(--muted)'; btnR.style.borderColor = 'var(--border)'; btnR.style.fontWeight = 'normal';
+        } else {
+            btnR.style.background = 'rgba(88,166,255,0.15)'; btnR.style.color = 'var(--accent)'; btnR.style.borderColor = 'var(--accent)'; btnR.style.fontWeight = '600';
+            btnW.style.background = 'transparent'; btnW.style.color = 'var(--muted)'; btnW.style.borderColor = 'var(--border)'; btnW.style.fontWeight = 'normal';
+        }
     }
 }
 
@@ -384,21 +426,24 @@ function openLightbox(sid, idx) {
 }
 
 function showLightboxImage() {
-    const img = currentImages[currentIdx];
-    lbImg.src     = `/api/gallery/${lbSessionId}/${img}`;
-    lbCaption.textContent = `${moveLabel(img)}  (${currentIdx + 1} / ${currentImages.length})`;
+    const imgs = currentViewMode === 'raw' ? sessionRawImages : currentImages;
+    const img = imgs[currentIdx];
+    const typePrefix = sessionHasSubfolders ? `/${currentViewMode}` : '';
+    lbImg.src     = `/api/gallery/${lbSessionId}${typePrefix}/${img}`;
+    lbCaption.textContent = `${moveLabel(img)}  (${currentIdx + 1} / ${imgs.length})`;
 }
 
+function lbCount() { return (currentViewMode === 'raw' ? sessionRawImages : currentImages).length; }
 document.getElementById('lb-close').onclick = () => lightbox.classList.remove('open');
-document.getElementById('lb-prev').onclick  = () => { currentIdx = (currentIdx - 1 + currentImages.length) % currentImages.length; showLightboxImage(); };
-document.getElementById('lb-next').onclick  = () => { currentIdx = (currentIdx + 1) % currentImages.length; showLightboxImage(); };
+document.getElementById('lb-prev').onclick  = () => { currentIdx = (currentIdx - 1 + lbCount()) % lbCount(); showLightboxImage(); };
+document.getElementById('lb-next').onclick  = () => { currentIdx = (currentIdx + 1) % lbCount(); showLightboxImage(); };
 
 lightbox.addEventListener('click', e => { if (e.target === lightbox) lightbox.classList.remove('open'); });
 document.addEventListener('keydown', e => {
     if (!lightbox.classList.contains('open')) return;
     if (e.key === 'Escape')      lightbox.classList.remove('open');
-    if (e.key === 'ArrowLeft')   { currentIdx = (currentIdx - 1 + currentImages.length) % currentImages.length; showLightboxImage(); }
-    if (e.key === 'ArrowRight')  { currentIdx = (currentIdx + 1) % currentImages.length; showLightboxImage(); }
+    if (e.key === 'ArrowLeft')   { currentIdx = (currentIdx - 1 + lbCount()) % lbCount(); showLightboxImage(); }
+    if (e.key === 'ArrowRight')  { currentIdx = (currentIdx + 1) % lbCount(); showLightboxImage(); }
 });
 
 // ── Boot ─────────────────────────────────────────────────────────────────────

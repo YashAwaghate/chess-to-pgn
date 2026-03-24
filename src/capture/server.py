@@ -32,6 +32,7 @@ project_root = os.path.dirname(os.path.dirname(script_dir))
 sys.path.append(os.path.join(project_root, 'src', 'preprocessing'))
 sys.path.append(script_dir)
 from hand_detector import HandDetector
+from process_board import determine_orientation
 
 # ── S3 (optional — only active when S3_BUCKET env var is set) ────────────────
 S3_BUCKET = os.getenv("S3_BUCKET", "")
@@ -95,12 +96,18 @@ class SessionState:
         self.board_corners      = []
         self.warped_setup_frame = None
         self.board_grid         = None  # {'x_lines': [...], 'y_lines': [...]}
-        self.hand_exit_time     = None
-        self.cooldown_duration  = 0.5
-        self.game_info: dict    = {}   # populated by /api/setup
+        self.hand_exit_time          = None
+        self.cooldown_duration       = 0.75
+        self.last_clean_frame        = None
+        self.consecutive_clean_frames = 0
+        self.save_raw: bool          = False
+        self.game_info: dict         = {}   # populated by /api/setup
+        self.last_activity_time      = time.time()
 
 
 session = SessionState()
+
+ACTIVITY_TIMEOUT = 60  # seconds — auto-reset if no activity in calibration/orientation
 
 log_dir = os.path.join(project_root, "logs")
 os.makedirs(log_dir, exist_ok=True)
@@ -132,6 +139,7 @@ class GameSetupData(BaseModel):
     round:        Optional[str] = "-"
     time_control: Optional[str] = "Casual"
     notes:        Optional[str] = ""
+    save_raw:     Optional[bool] = False
 
 class CalibrationData(BaseModel):
     points:    list[dict]
@@ -167,113 +175,12 @@ def snap_to_corner(col: int, row: int) -> tuple:
     return min(corners, key=lambda c: abs(c[0] - col) + abs(c[1] - row))
 
 def detect_board_grid(warped: np.ndarray) -> dict:
-    """
-    Detect the 9 vertical and 9 horizontal grid lines on a warped board image
-    using gradient projection — robust to pieces blocking the lines.
-
-    Strategy:
-      • Compute Sobel gradients, sum their absolute values per column/row.
-      • The chessboard alternating pattern creates strong, consistent peaks
-        at every grid boundary across the full image width/height.
-      • Pick the 9 peaks with correct spacing via non-maximum suppression.
-      • Extrapolate if fewer than 9 are found.
-
-    Returns {'x_lines': [9 ints], 'y_lines': [9 ints]}.
-    """
+    """Uniform 8×8 grid — after perspective warp to 400×400, grid is evenly spaced."""
     H, W = warped.shape[:2]
-
-    def uniform():
-        return {
-            'x_lines': [round(i * W / 8) for i in range(9)],
-            'y_lines': [round(i * H / 8) for i in range(9)],
-        }
-
-    # ── Gradient profiles ────────────────────────────────────────────────────
-    gray = cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    gray = clahe.apply(gray)
-
-    gx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)   # vertical edges
-    gy = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)   # horizontal edges
-
-    col_profile = np.sum(np.abs(gx), axis=0)   # W values — peaks at vertical lines
-    row_profile = np.sum(np.abs(gy), axis=1)   # H values — peaks at horizontal lines
-
-    def find_9_lines(profile, dim):
-        # Smooth to suppress piece-edge noise while keeping grid peaks
-        smooth_k = max(3, dim // 60)
-        kernel   = np.ones(smooth_k) / smooth_k
-        smooth   = np.convolve(profile, kernel, mode='same')
-
-        # Minimum expected spacing: assume grid occupies at least 50% of dim
-        min_spacing = dim // (8 * 3)   # generous lower bound
-
-        # Collect all local maxima above a noise threshold
-        noise_floor = np.mean(smooth) + 0.3 * np.std(smooth)
-        candidates  = []
-        for i in range(1, dim - 1):
-            if smooth[i] > smooth[i - 1] and smooth[i] >= smooth[i + 1] \
-                    and smooth[i] > noise_floor:
-                candidates.append((float(smooth[i]), i))
-
-        if len(candidates) < 2:
-            return None   # signal too weak, fall back to uniform
-
-        # Non-maximum suppression: keep strongest peaks with min spacing
-        candidates.sort(key=lambda x: -x[0])
-        selected = []
-        for _, pos in candidates:
-            if all(abs(pos - s) >= min_spacing for s in selected):
-                selected.append(pos)
-
-        selected.sort()
-        if len(selected) < 2:
-            return None
-
-        # Estimate grid spacing from the detected peaks
-        diffs   = np.diff(selected)
-        valid   = diffs[diffs > min_spacing * 0.5]
-        if len(valid) == 0:
-            return None
-        spacing = float(np.median(valid))
-
-        # Extrapolate forward and backward to reach 9 lines
-        result = list(map(float, selected))
-        for _ in range(20):
-            if len(result) >= 9:
-                break
-            # Prefer filling toward the edges of the image
-            gap_front = result[0]
-            gap_back  = dim - result[-1]
-            if gap_front > gap_back and gap_front > spacing * 0.4:
-                result.insert(0, result[0] - spacing)
-            elif gap_back > spacing * 0.4:
-                result.append(result[-1] + spacing)
-            else:
-                break
-
-        # Trim extras (keep the 9 that best cover [0, dim])
-        while len(result) > 9:
-            if abs(result[0]) > abs(result[-1] - dim):
-                result.pop(0)
-            else:
-                result.pop()
-        # Last resort pad
-        while len(result) < 9:
-            result.append(result[-1] + spacing)
-
-        return [int(round(v)) for v in sorted(result)[:9]]
-
-    x_lines = find_9_lines(col_profile, W)
-    y_lines = find_9_lines(row_profile, H)
-
-    if x_lines is None or y_lines is None:
-        logger.warning("Grid detection fell back to uniform grid.")
-        return uniform()
-
-    logger.info(f"Grid x: {x_lines}")
-    logger.info(f"Grid y: {y_lines}")
-    return {'x_lines': x_lines, 'y_lines': y_lines}
+    return {
+        'x_lines': [round(i * W / 8) for i in range(9)],
+        'y_lines': [round(i * H / 8) for i in range(9)],
+    }
 
 
 def write_game_info():
@@ -309,6 +216,11 @@ def debug_grid():
 
 @app.get("/api/state")
 def get_state():
+    # Auto-reset stale calibration/orientation sessions on state check
+    if (session.state in (CaptureState.CALIBRATING, CaptureState.ORIENTATION)
+            and time.time() - session.last_activity_time > ACTIVITY_TIMEOUT):
+        logger.info("Activity timeout on state check — auto-resetting stale session")
+        session.reset()
     return {
         "state":         session.state.value,
         "game_id":       session.game_id,
@@ -322,8 +234,11 @@ def get_state():
 @app.post("/api/setup")
 def setup_game(data: GameSetupData):
     """Step 0: save game metadata and move to CALIBRATING."""
+    if session.state not in (CaptureState.SETUP, CaptureState.CALIBRATING, CaptureState.ORIENTATION):
+        return JSONResponse(status_code=400, content={"message": "Game already in progress"})
     if session.state != CaptureState.SETUP:
-        return JSONResponse(status_code=400, content={"message": "Not in SETUP state"})
+        logger.info(f"Setup called from {session.state.value} — resetting stale session")
+        session.reset()
     try:
         game_date = data.game_date or str(date.today())
         white     = data.white.strip() or "Player 1"
@@ -343,8 +258,9 @@ def setup_game(data: GameSetupData):
             "result":       "*",
             "notes":        data.notes or "",
         }
+        session.save_raw = bool(data.save_raw)
         session.state = CaptureState.CALIBRATING
-        logger.info(f"Game setup: {white} vs {black} on {game_date}")
+        logger.info(f"Game setup: {white} vs {black} on {game_date} (save_raw={session.save_raw})")
         return {"status": "success", "game_info": session.game_info}
     except Exception as e:
         logger.error(f"Setup error: {e}")
@@ -354,6 +270,7 @@ def setup_game(data: GameSetupData):
 @app.post("/api/calibrate")
 def calibrate(data: CalibrationData):
     """Step 1: compute perspective transform, return warped preview."""
+    session.last_activity_time = time.time()
     if session.state != CaptureState.CALIBRATING:
         return JSONResponse(status_code=400, content={"message": "Not in CALIBRATING state"})
     try:
@@ -370,8 +287,20 @@ def calibrate(data: CalibrationData):
 
         grid = detect_board_grid(warped)
         session.board_grid = grid
-        logger.info(f"Grid detected — x: {grid['x_lines']}, y: {grid['y_lines']}")
-        return {"status": "success", "warped_b64": encode_image(warped), "grid": grid}
+        logger.info(f"Grid — x: {grid['x_lines']}, y: {grid['y_lines']}")
+
+        # Auto-detect orientation suggestion
+        _ANGLE_TO_CORNER = {0: {"col": 0, "row": 7}, 90: {"col": 7, "row": 7},
+                            180: {"col": 7, "row": 0}, 270: {"col": 0, "row": 0}}
+        try:
+            suggested_angle = determine_orientation(warped)
+        except Exception:
+            suggested_angle = 0
+        suggested_a1 = {**_ANGLE_TO_CORNER[suggested_angle], "angle": suggested_angle}
+        logger.info(f"Auto-detected orientation: {suggested_angle}°")
+
+        return {"status": "success", "warped_b64": encode_image(warped),
+                "grid": grid, "suggested_a1": suggested_a1}
     except Exception as e:
         logger.error(f"Calibration error: {e}")
         return JSONResponse(status_code=500, content={"message": str(e)})
@@ -380,6 +309,7 @@ def calibrate(data: CalibrationData):
 @app.post("/api/set_orientation")
 def set_orientation(data: OrientationData):
     """Step 2: user identifies a1. Rotate board so a1 is always bottom-left."""
+    session.last_activity_time = time.time()
     if session.state != CaptureState.ORIENTATION:
         return JSONResponse(status_code=400, content={"message": "Not in ORIENTATION state"})
     try:
@@ -418,8 +348,14 @@ def reset_session():
 
 @app.post("/api/process_frame")
 def process_frame(data: FrameData):
+    # Auto-reset stale calibration/orientation sessions
+    if (session.state in (CaptureState.CALIBRATING, CaptureState.ORIENTATION)
+            and time.time() - session.last_activity_time > ACTIVITY_TIMEOUT):
+        logger.info("Activity timeout — auto-resetting stale session")
+        session.reset()
     if session.state in (CaptureState.SETUP, CaptureState.CALIBRATING, CaptureState.ORIENTATION):
         return {"status": session.state.value.lower()}
+    session.last_activity_time = time.time()
 
     frame       = decode_image(data.image_b64)
     hand_result = hand_detector.process_frame(frame, session.board_corners)
@@ -431,18 +367,28 @@ def process_frame(data: FrameData):
 
     elif session.state == CaptureState.MOVING:
         if hand_result.over_board:
-            session.hand_exit_time = None
+            session.hand_exit_time          = None
+            session.consecutive_clean_frames = 0
+            session.last_clean_frame        = None
         else:
             if session.hand_exit_time is None:
                 session.hand_exit_time = time.time()
-            elif time.time() - session.hand_exit_time >= session.cooldown_duration:
+            # Track frames with no hand present at all (not just off-board)
+            if not hand_result.hand_present:
+                session.consecutive_clean_frames += 1
+                session.last_clean_frame = frame.copy()
+            if (time.time() - session.hand_exit_time >= session.cooldown_duration
+                    and session.consecutive_clean_frames >= 3):
+                capture_frame = session.last_clean_frame if session.last_clean_frame is not None else frame
                 logger.info(f"Capturing move {session.move_number}")
-                session.state          = CaptureState.STATIC
-                session.hand_exit_time = None
+                session.state                    = CaptureState.STATIC
+                session.hand_exit_time           = None
+                session.consecutive_clean_frames = 0
+                session.last_clean_frame         = None
 
-                warped  = cv2.warpPerspective(frame, session.perspective_matrix, (BOARD_SIZE, BOARD_SIZE))
+                warped  = cv2.warpPerspective(capture_frame, session.perspective_matrix, (BOARD_SIZE, BOARD_SIZE))
                 rotated = apply_rotation(warped, session.rotation_code)
-                save_and_upload(rotated)
+                save_and_upload(rotated, raw_frame=capture_frame)
 
     return {
         "state":     session.state.value,
@@ -464,17 +410,30 @@ def _s3_put(s3_key: str, data: bytes, content_type: str = "image/jpeg") -> bool:
         return False
 
 
-def save_and_upload(frame: np.ndarray):
+def save_and_upload(frame: np.ndarray, raw_frame: np.ndarray = None):
     filename = f"{session.game_id}_{session.move_number:03d}.jpg"
+
+    # Always save warped+rotated image
     _, buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 92])
     img_bytes = buf.tobytes()
-    s3_key = f"{S3_PREFIX}/{session.game_id}/{filename}"
+    s3_key = f"{S3_PREFIX}/{session.game_id}/warped/{filename}"
     if not _s3_put(s3_key, img_bytes):
-        # Fallback: local save (development / no S3)
-        save_dir = os.path.join(project_root, "data", "sessions", session.game_id)
+        save_dir = os.path.join(project_root, "data", "sessions", session.game_id, "warped")
         os.makedirs(save_dir, exist_ok=True)
         cv2.imwrite(os.path.join(save_dir, filename), frame)
-        logger.info(f"Saved locally: {filename}")
+        logger.info(f"Saved locally (warped): {filename}")
+
+    # Opt-in: save raw camera frame
+    if session.save_raw and raw_frame is not None:
+        _, rbuf = cv2.imencode('.jpg', raw_frame, [cv2.IMWRITE_JPEG_QUALITY, 92])
+        raw_bytes = rbuf.tobytes()
+        raw_s3_key = f"{S3_PREFIX}/{session.game_id}/raw/{filename}"
+        if not _s3_put(raw_s3_key, raw_bytes):
+            raw_dir = os.path.join(project_root, "data", "sessions", session.game_id, "raw")
+            os.makedirs(raw_dir, exist_ok=True)
+            cv2.imwrite(os.path.join(raw_dir, filename), raw_frame)
+            logger.info(f"Saved locally (raw): {filename}")
+
     write_game_info()
     session.move_number += 1
 
@@ -510,21 +469,35 @@ def gallery_list_sessions():
 
 @app.get("/api/gallery/{session_id}")
 def gallery_get_session(session_id: str):
-    """Return game_info + image list for a session."""
+    """Return game_info + warped/raw image lists for a session."""
     if _s3_client and S3_BUCKET:
         try:
             prefix = f"{S3_PREFIX}/{session_id}/"
-            resp = _s3_client.list_objects_v2(Bucket=S3_BUCKET, Prefix=prefix)
-            images = []
+            resp = _s3_client.list_objects_v2(Bucket=S3_BUCKET, Prefix=prefix, MaxKeys=1000)
+            warped_images = []
+            raw_images = []
+            flat_images = []
             game_info = None
             for obj in resp.get("Contents", []):
-                name = obj["Key"].split("/")[-1]
-                if name.endswith(".jpg"):
-                    images.append(name)
-                elif name == "game_info.json":
-                    body = _s3_client.get_object(Bucket=S3_BUCKET, Key=obj["Key"])["Body"].read()
+                key = obj["Key"]
+                name = key.split("/")[-1]
+                if name == "game_info.json":
+                    body = _s3_client.get_object(Bucket=S3_BUCKET, Key=key)["Body"].read()
                     game_info = json.loads(body)
-            return {"session_id": session_id, "game_info": game_info, "images": sorted(images)}
+                elif name.endswith(".jpg"):
+                    # Determine if in warped/ or raw/ subfolder or flat
+                    rel = key[len(prefix):]
+                    if rel.startswith("warped/"):
+                        warped_images.append(name)
+                    elif rel.startswith("raw/"):
+                        raw_images.append(name)
+                    else:
+                        flat_images.append(name)
+            # Backward compat: old flat sessions → treat as warped
+            images = sorted(warped_images) if warped_images else sorted(flat_images)
+            return {"session_id": session_id, "game_info": game_info,
+                    "images": images, "raw_images": sorted(raw_images),
+                    "has_subfolders": bool(warped_images)}
         except Exception as e:
             logger.error(f"S3 session read error: {e}")
             return JSONResponse(status_code=500, content={"message": str(e)})
@@ -533,31 +506,64 @@ def gallery_get_session(session_id: str):
     local_dir = os.path.join(project_root, "data", "sessions", session_id)
     if not os.path.isdir(local_dir):
         return JSONResponse(status_code=404, content={"message": "Session not found"})
-    images = sorted(f for f in os.listdir(local_dir) if f.endswith(".jpg"))
+    warped_dir = os.path.join(local_dir, "warped")
+    raw_dir = os.path.join(local_dir, "raw")
+    if os.path.isdir(warped_dir):
+        images = sorted(f for f in os.listdir(warped_dir) if f.endswith(".jpg"))
+        raw_images = sorted(f for f in os.listdir(raw_dir) if f.endswith(".jpg")) if os.path.isdir(raw_dir) else []
+        has_subfolders = True
+    else:
+        images = sorted(f for f in os.listdir(local_dir) if f.endswith(".jpg"))
+        raw_images = []
+        has_subfolders = False
     game_info = None
     info_path = os.path.join(local_dir, "game_info.json")
     if os.path.exists(info_path):
         with open(info_path) as f:
             game_info = json.load(f)
-    return {"session_id": session_id, "game_info": game_info, "images": images}
+    return {"session_id": session_id, "game_info": game_info,
+            "images": images, "raw_images": raw_images, "has_subfolders": has_subfolders}
+
+
+@app.get("/api/gallery/{session_id}/{image_type}/{filename}")
+def gallery_get_image_typed(session_id: str, image_type: str, filename: str):
+    """Stream a single image from warped/ or raw/ subfolder."""
+    if image_type not in ("warped", "raw"):
+        return JSONResponse(status_code=400, content={"message": "image_type must be 'warped' or 'raw'"})
+    if _s3_client and S3_BUCKET:
+        try:
+            key = f"{S3_PREFIX}/{session_id}/{image_type}/{filename}"
+            obj = _s3_client.get_object(Bucket=S3_BUCKET, Key=key)
+            return Response(content=obj["Body"].read(), media_type="image/jpeg")
+        except Exception:
+            pass
+    local_path = os.path.join(project_root, "data", "sessions", session_id, image_type, filename)
+    if os.path.exists(local_path):
+        with open(local_path, "rb") as f:
+            return Response(content=f.read(), media_type="image/jpeg")
+    return JSONResponse(status_code=404, content={"message": "Image not found"})
 
 
 @app.get("/api/gallery/{session_id}/{filename}")
 def gallery_get_image(session_id: str, filename: str):
-    """Stream a single image (from S3 or local)."""
+    """Stream a single image — backward compat for old flat sessions or warped fallback."""
     if _s3_client and S3_BUCKET:
-        try:
-            key = f"{S3_PREFIX}/{session_id}/{filename}"
-            obj = _s3_client.get_object(Bucket=S3_BUCKET, Key=key)
-            return Response(content=obj["Body"].read(), media_type="image/jpeg")
-        except Exception as e:
-            return JSONResponse(status_code=404, content={"message": str(e)})
+        # Try warped/ first, then flat
+        for sub in ("warped/", ""):
+            try:
+                key = f"{S3_PREFIX}/{session_id}/{sub}{filename}"
+                obj = _s3_client.get_object(Bucket=S3_BUCKET, Key=key)
+                return Response(content=obj["Body"].read(), media_type="image/jpeg")
+            except Exception:
+                continue
+        return JSONResponse(status_code=404, content={"message": "Image not found"})
 
-    # Fallback: local
-    local_path = os.path.join(project_root, "data", "sessions", session_id, filename)
-    if os.path.exists(local_path):
-        with open(local_path, "rb") as f:
-            return Response(content=f.read(), media_type="image/jpeg")
+    # Fallback: local — try warped/ then flat
+    for sub in ("warped", ""):
+        local_path = os.path.join(project_root, "data", "sessions", session_id, sub, filename)
+        if os.path.exists(local_path):
+            with open(local_path, "rb") as f:
+                return Response(content=f.read(), media_type="image/jpeg")
     return JSONResponse(status_code=404, content={"message": "Image not found"})
 
 

@@ -69,6 +69,11 @@
                     <input type="text" id="inp-notes" placeholder="Optional" />
                 </div>
             </div>
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; text-transform:none; font-size:0.88rem;">
+                    <input type="checkbox" id="inp-save-raw" style="width:18px; height:18px;"> Save raw camera images
+                </label>
+            </div>
             <div class="setup-actions">
                 <button id="btn-start-session" class="btn primary large full-width">Start Session →</button>
             </div>
@@ -90,14 +95,24 @@
                         <button id="btn-reset-box" class="btn secondary">Reset Box</button>
                     </div>
 
-                    <!-- Step 2: a1 orientation -->
-                    <div id="orientation-panel" style="display:none; position:absolute; inset:0; background:#000;">
-                        <img id="warped-board-img" style="position:absolute; inset:0; width:100%; height:100%; object-fit:contain;" />
-                        <canvas id="orientation-canvas" style="position:absolute; inset:0; width:100%; height:100%; touch-action:none;"></canvas>
-                        <div class="cam-bar" id="orientation-controls">
-                            <span class="cam-hint" id="orientation-hint">Tap the <strong>a1</strong> square (White's bottom-left)</span>
-                            <button id="btn-confirm-a1" class="btn primary" disabled>Confirm a1</button>
-                            <button id="btn-redo-corners" class="btn secondary">Redo</button>
+                    <!-- Step 2: a1 orientation (4-button picker) -->
+                    <div id="orientation-panel" style="display:none; position:absolute; inset:0; background:#000; flex-direction:column;">
+                        <div style="flex:1; position:relative; overflow:hidden;">
+                            <img id="warped-board-img" style="width:100%; height:100%; object-fit:contain;" />
+                            <canvas id="orientation-canvas" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none;"></canvas>
+                        </div>
+                        <div class="cam-bar" id="orientation-controls" style="flex-direction:column; gap:0.5rem;">
+                            <span class="cam-hint" id="orientation-hint">Where is <strong>a1</strong>? (White's queen-side rook)</span>
+                            <div class="orient-buttons">
+                                <button class="btn orient-btn" data-col="0" data-row="7">Bottom-Left</button>
+                                <button class="btn orient-btn" data-col="7" data-row="7">Bottom-Right</button>
+                                <button class="btn orient-btn" data-col="0" data-row="0">Top-Left</button>
+                                <button class="btn orient-btn" data-col="7" data-row="0">Top-Right</button>
+                            </div>
+                            <div style="display:flex; gap:0.5rem; width:100%;">
+                                <button id="btn-confirm-a1" class="btn primary" style="flex:1;" disabled>Confirm</button>
+                                <button id="btn-redo-corners" class="btn secondary">Redo</button>
+                            </div>
                         </div>
                     </div>
 
