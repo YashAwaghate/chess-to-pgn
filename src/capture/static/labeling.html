@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Board Labeling Tool</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --panel-bg: rgba(22, 27, 34, 0.7);
+            --border-color: rgba(48, 54, 61, 0.8);
+            --text-main: #c9d1d9;
+            --text-muted: #8b949e;
+            --accent: #58a6ff;
+            --accent-hover: #1f6feb;
+            --success: #2ea043;
+            --danger: #da3633;
+            --border-radius: 12px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            background-image: radial-gradient(circle at 50% 0%, #1c2128 0%, transparent 70%);
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        header {
+            background: var(--panel-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            padding: 1rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            background: linear-gradient(90deg, #fff, #8b949e);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            padding: 1.25rem;
+        }
+
+        .panel h2 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: white;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.45rem;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            border: none;
+            font-family: inherit;
+            font-weight: 600;
+            font-size: 0.88rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .btn.primary { background: var(--accent); color: white; }
+        .btn.primary:not(:disabled):hover { background: var(--accent-hover); }
+        .btn.secondary { background: var(--border-color); color: white; }
+        .btn.secondary:hover { background: #4b535d; }
+        .btn.success { background: var(--success); color: white; }
+        .btn.danger-btn { background: transparent; border: 1px solid var(--danger); color: var(--danger); }
+
+        select, input {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 0.5rem 0.75rem;
+            color: var(--text-main);
+            font-family: inherit;
+            font-size: 0.9rem;
+            outline: none;
+        }
+
+        select:focus, input:focus { border-color: var(--accent); }
+        select option { background: #1c2128; }
+
+        /* Session picker */
+        .session-bar {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .session-bar select { min-width: 250px; }
+
+        .progress-text {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        /* Main layout */
+        .workspace {
+            display: grid;
+            grid-template-columns: 1fr 320px;
+            gap: 1.25rem;
+            align-items: start;
+        }
+
+        /* Board area */
+        .board-area {
+            position: relative;
+            aspect-ratio: 1;
+            background: #000;
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            cursor: crosshair;
+        }
+
+        .board-area img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .board-area canvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+        }
+
+        /* Selected square highlight */
+        .square-info {
+            text-align: center;
+            padding: 0.5rem;
+            font-size: 0.9rem;
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        /* Piece picker */
+        .piece-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.4rem;
+            margin-top: 0.5rem;
+        }
+
+        .piece-btn {
+            background: rgba(255,255,255,0.06);
+            border: 2px solid var(--border-color);
+            color: var(--text-main);
+            font-size: 1.1rem;
+            padding: 0.6rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+            min-height: 48px;
+        }
+
+        .piece-btn:hover { background: rgba(255,255,255,0.12); }
+        .piece-btn.selected {
+            border-color: var(--accent);
+            background: rgba(88,166,255,0.15);
+            color: var(--accent);
+        }
+
+        .piece-btn .piece-symbol { font-size: 1.4rem; display: block; }
+        .piece-btn .piece-label { font-size: 0.65rem; color: var(--text-muted); }
+
+        /* Navigation */
+        .nav-bar {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .nav-bar .btn { min-width: 80px; }
+        .img-counter { color: var(--text-muted); font-size: 0.85rem; min-width: 80px; text-align: center; }
+
+        /* Status messages */
+        .status-msg {
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            margin-top: 0.5rem;
+        }
+        .status-msg.success { background: rgba(46,160,67,0.15); color: var(--success); border: 1px solid var(--success); }
+        .status-msg.error { background: rgba(218,54,51,0.15); color: var(--danger); border: 1px solid var(--danger); }
+
+        /* Sidebar sections */
+        .sidebar { display: flex; flex-direction: column; gap: 1rem; }
+
+        .label-summary {
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 0.78rem;
+            font-family: monospace;
+            line-height: 1.6;
+        }
+
+        .label-summary .empty-sq { color: var(--text-muted); }
+        .label-summary .white-piece { color: #f0f0f0; }
+        .label-summary .black-piece { color: #d29922; }
+
+        @media (max-width: 768px) {
+            .workspace { grid-template-columns: 1fr; }
+            .piece-grid { grid-template-columns: repeat(4, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Chess Board Labeling</h1>
+            <a href="/" class="btn secondary">Back to Capture</a>
+        </header>
+
+        <!-- Session picker -->
+        <div class="panel">
+            <div class="session-bar">
+                <select id="session-select">
+                    <option value="">Select a session...</option>
+                </select>
+                <button id="btn-load" class="btn primary" disabled>Load Session</button>
+                <span class="progress-text" id="label-progress"></span>
+            </div>
+        </div>
+
+        <!-- Workspace -->
+        <div class="workspace" id="workspace" style="display:none;">
+            <!-- Board view -->
+            <div>
+                <div class="board-area" id="board-area">
+                    <img id="board-img" src="" alt="Board">
+                    <canvas id="board-canvas"></canvas>
+                </div>
+                <div class="nav-bar" style="margin-top:0.75rem;">
+                    <button id="btn-prev" class="btn secondary" disabled>Prev</button>
+                    <span class="img-counter" id="img-counter">0 / 0</span>
+                    <button id="btn-next" class="btn secondary" disabled>Next</button>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <div class="panel">
+                    <h2>Selected Square</h2>
+                    <div class="square-info" id="selected-square">Click a square on the board</div>
+
+                    <h2 style="margin-top:1rem;">Assign Piece</h2>
+                    <div class="piece-grid" id="piece-grid"></div>
+                </div>
+
+                <div class="panel">
+                    <h2>Actions</h2>
+                    <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                        <button id="btn-autofill" class="btn secondary">Auto-fill from Model</button>
+                        <button id="btn-clear" class="btn danger-btn">Clear All Labels</button>
+                        <button id="btn-save" class="btn success" disabled>Save Labels</button>
+                    </div>
+                    <div id="status-msg" class="status-msg" style="display:none;"></div>
+                </div>
+
+                <div class="panel">
+                    <h2>Label Summary</h2>
+                    <div class="label-summary" id="label-summary"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // ── DOM refs ──
+        const sessionSelect = document.getElementById('session-select');
+        const btnLoad = document.getElementById('btn-load');
+        const labelProgress = document.getElementById('label-progress');
+        const workspace = document.getElementById('workspace');
+        const boardImg = document.getElementById('board-img');
+        const boardCanvas = document.getElementById('board-canvas');
+        const boardArea = document.getElementById('board-area');
+        const btnPrev = document.getElementById('btn-prev');
+        const btnNext = document.getElementById('btn-next');
+        const imgCounter = document.getElementById('img-counter');
+        const selectedSquareEl = document.getElementById('selected-square');
+        const pieceGrid = document.getElementById('piece-grid');
+        const btnAutofill = document.getElementById('btn-autofill');
+        const btnClear = document.getElementById('btn-clear');
+        const btnSave = document.getElementById('btn-save');
+        const statusMsg = document.getElementById('status-msg');
+        const labelSummary = document.getElementById('label-summary');
+
+        // ── State ──
+        let currentSession = null;
+        let imageList = [];
+        let labeledSet = new Set();
+        let gameInfo = {};
+        let currentIdx = 0;
+        let selectedSquare = null;
+        let labels = {};  // {square_name: piece_class}
+        let grid = null;
+        let rotation = 0;
+
+        // Piece definitions for the picker
+        const PIECES = [
+            { cls: 'empty', symbol: '·', label: 'Empty', color: '' },
+            { cls: 'P', symbol: '♙', label: 'Pawn', color: 'white' },
+            { cls: 'N', symbol: '♘', label: 'Knight', color: 'white' },
+            { cls: 'B', symbol: '♗', label: 'Bishop', color: 'white' },
+            { cls: 'R', symbol: '♖', label: 'Rook', color: 'white' },
+            { cls: 'Q', symbol: '♕', label: 'Queen', color: 'white' },
+            { cls: 'K', symbol: '♔', label: 'King', color: 'white' },
+            { cls: 'p', symbol: '♟', label: 'Pawn', color: 'black' },
+            { cls: 'n', symbol: '♞', label: 'Knight', color: 'black' },
+            { cls: 'b', symbol: '♝', label: 'Bishop', color: 'black' },
+            { cls: 'r', symbol: '♜', label: 'Rook', color: 'black' },
+            { cls: 'q', symbol: '♛', label: 'Queen', color: 'black' },
+            { cls: 'k', symbol: '♚', label: 'King', color: 'black' },
+        ];
+
+        // ── Init piece grid ──
+        function initPieceGrid() {
+            pieceGrid.innerHTML = '';
+            PIECES.forEach(p => {
+                const btn = document.createElement('button');
+                btn.className = 'piece-btn';
+                btn.dataset.piece = p.cls;
+                btn.innerHTML = `<span class="piece-symbol">${p.symbol}</span><span class="piece-label">${p.color ? p.color + ' ' : ''}${p.label}</span>`;
+                btn.addEventListener('click', () => assignPiece(p.cls));
+                pieceGrid.appendChild(btn);
+            });
+        }
+
+        // ── Load sessions ──
+        async function loadSessions() {
+            try {
+                const resp = await fetch('/api/labeling/sessions');
+                const data = await resp.json();
+                sessionSelect.innerHTML = '<option value="">Select a session...</option>';
+                data.sessions.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s.session_id;
+                    opt.textContent = `${s.session_id} (${s.image_count} images)`;
+                    sessionSelect.appendChild(opt);
+                });
+            } catch (e) {
+                console.error('Failed to load sessions:', e);
+            }
+        }
+
+        sessionSelect.addEventListener('change', () => {
+            btnLoad.disabled = !sessionSelect.value;
+        });
+
+        btnLoad.addEventListener('click', async () => {
+            const sid = sessionSelect.value;
+            if (!sid) return;
+            btnLoad.disabled = true;
+            btnLoad.textContent = 'Loading...';
+
+            try {
+                const resp = await fetch(`/api/labeling/session/${sid}/images`);
+                const data = await resp.json();
+
+                currentSession = sid;
+                imageList = data.images;
+                labeledSet = new Set(data.labeled);
+                gameInfo = data.game_info || {};
+                grid = gameInfo.board_grid || null;
+                rotation = gameInfo.rotation_angle || 0;
+                currentIdx = 0;
+                labels = {};
+
+                workspace.style.display = '';
+                updateProgress();
+                loadImage(0);
+            } catch (e) {
+                console.error('Failed to load session:', e);
+                showStatus('Failed to load session', 'error');
+            } finally {
+                btnLoad.disabled = false;
+                btnLoad.textContent = 'Load Session';
+            }
+        });
+
+        // ── Image navigation ──
+        function loadImage(idx) {
+            if (idx < 0 || idx >= imageList.length) return;
+            currentIdx = idx;
+            const filename = imageList[idx];
+            boardImg.src = `/api/gallery/${currentSession}/warped/${filename}`;
+            imgCounter.textContent = `${idx + 1} / ${imageList.length}`;
+            btnPrev.disabled = idx === 0;
+            btnNext.disabled = idx >= imageList.length - 1;
+            selectedSquare = null;
+            selectedSquareEl.textContent = 'Click a square on the board';
+            labels = {};
+            updatePieceSelection();
+
+            // Load existing labels
+            const imgIdx = filename.replace(/\.\w+$/, '');
+            fetch(`/api/labeling/session/${currentSession}/image/${imgIdx}/labels`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.exists) {
+                        labels = data.labels;
+                        btnSave.disabled = false;
+                    } else {
+                        btnSave.disabled = true;
+                    }
+                    drawOverlay();
+                    updateLabelSummary();
+                });
+        }
+
+        btnPrev.addEventListener('click', () => loadImage(currentIdx - 1));
+        btnNext.addEventListener('click', () => loadImage(currentIdx + 1));
+
+        // ── Board click → select square ──
+        boardArea.addEventListener('click', (e) => {
+            if (!grid && !gameInfo) return;
+
+            const rect = boardCanvas.getBoundingClientRect();
+            const scaleX = 400 / rect.width;
+            const scaleY = 400 / rect.height;
+            const imgX = (e.clientX - rect.left) * scaleX;
+            const imgY = (e.clientY - rect.top) * scaleY;
+
+            const g = grid || { x_lines: [0,50,100,150,200,250,300,350,400], y_lines: [0,50,100,150,200,250,300,350,400] };
+
+            // Find which cell was clicked
+            let col = -1, row = -1;
+            for (let j = 0; j < 8; j++) {
+                if (imgX >= g.x_lines[j] && imgX < g.x_lines[j+1]) { col = j; break; }
+            }
+            for (let i = 0; i < 8; i++) {
+                if (imgY >= g.y_lines[i] && imgY < g.y_lines[i+1]) { row = i; break; }
+            }
+
+            if (col < 0 || row < 0) return;
+
+            // Map to square name using rotation
+            const files = "abcdefgh";
+            const ranks = "87654321";
+            let fi, ri;
+            if (rotation === 0) { fi = col; ri = row; }
+            else if (rotation === 180) { fi = 7 - col; ri = 7 - row; }
+            else if (rotation === 90) { fi = row; ri = 7 - col; }
+            else if (rotation === 270) { fi = 7 - row; ri = col; }
+            else { fi = col; ri = row; }
+
+            selectedSquare = `${files[fi]}${ranks[ri]}`;
+            selectedSquareEl.textContent = `Selected: ${selectedSquare}`;
+            updatePieceSelection();
+            drawOverlay();
+        });
+
+        // ── Assign piece ──
+        function assignPiece(pieceClass) {
+            if (!selectedSquare) return;
+            labels[selectedSquare] = pieceClass;
+            btnSave.disabled = false;
+            updatePieceSelection();
+            drawOverlay();
+            updateLabelSummary();
+        }
+
+        function updatePieceSelection() {
+            const currentPiece = selectedSquare ? labels[selectedSquare] : null;
+            document.querySelectorAll('.piece-btn').forEach(btn => {
+                btn.classList.toggle('selected', btn.dataset.piece === currentPiece);
+            });
+        }
+
+        // ── Draw overlay ──
+        function drawOverlay() {
+            const canvas = boardCanvas;
+            const img = boardImg;
+
+            // Wait for image to load
+            if (!img.naturalWidth) {
+                img.onload = () => drawOverlay();
+                return;
+            }
+
+            canvas.width = 400;
+            canvas.height = 400;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 400, 400);
+
+            const g = grid || { x_lines: [0,50,100,150,200,250,300,350,400], y_lines: [0,50,100,150,200,250,300,350,400] };
+
+            // Draw grid lines
+            ctx.strokeStyle = 'rgba(88, 166, 255, 0.4)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 9; i++) {
+                ctx.beginPath();
+                ctx.moveTo(g.x_lines[i], 0);
+                ctx.lineTo(g.x_lines[i], 400);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, g.y_lines[i]);
+                ctx.lineTo(400, g.y_lines[i]);
+                ctx.stroke();
+            }
+
+            // Highlight selected square
+            if (selectedSquare) {
+                const { col, row } = squareToPhysical(selectedSquare);
+                if (col >= 0 && row >= 0) {
+                    ctx.strokeStyle = 'rgba(88, 166, 255, 0.9)';
+                    ctx.lineWidth = 3;
+                    const x1 = g.x_lines[col], x2 = g.x_lines[col + 1];
+                    const y1 = g.y_lines[row], y2 = g.y_lines[row + 1];
+                    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+                }
+            }
+
+            // Draw labeled pieces
+            ctx.font = '18px serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const files = "abcdefgh";
+            const ranks = "87654321";
+            for (let i = 0; i < 8; i++) {
+                for (let j = 0; j < 8; j++) {
+                    let fi, ri;
+                    if (rotation === 0) { fi = j; ri = i; }
+                    else if (rotation === 180) { fi = 7 - j; ri = 7 - i; }
+                    else if (rotation === 90) { fi = i; ri = 7 - j; }
+                    else if (rotation === 270) { fi = 7 - i; ri = j; }
+                    else { fi = j; ri = i; }
+
+                    const sq = `${files[fi]}${ranks[ri]}`;
+                    const piece = labels[sq];
+                    if (piece && piece !== 'empty') {
+                        const p = PIECES.find(pp => pp.cls === piece);
+                        if (p) {
+                            const cx = (g.x_lines[j] + g.x_lines[j + 1]) / 2;
+                            const cy = (g.y_lines[i] + g.y_lines[i + 1]) / 2;
+                            // Background circle
+                            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                            ctx.beginPath();
+                            ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+                            ctx.fill();
+                            // Piece symbol
+                            ctx.fillStyle = p.color === 'white' ? '#ffffff' : '#d29922';
+                            ctx.fillText(p.symbol, cx, cy);
+                        }
+                    }
+                }
+            }
+        }
+
+        function squareToPhysical(squareName) {
+            const files = "abcdefgh";
+            const ranks = "87654321";
+            const fi = files.indexOf(squareName[0]);
+            const ri = ranks.indexOf(squareName[1]);
+            if (fi < 0 || ri < 0) return { col: -1, row: -1 };
+
+            let col, row;
+            if (rotation === 0) { col = fi; row = ri; }
+            else if (rotation === 180) { col = 7 - fi; row = 7 - ri; }
+            else if (rotation === 90) { col = 7 - ri; row = fi; }
+            else if (rotation === 270) { col = ri; row = 7 - fi; }
+            else { col = fi; row = ri; }
+
+            return { col, row };
+        }
+
+        // ── Label summary ──
+        function updateLabelSummary() {
+            const files = "abcdefgh";
+            const ranks = "87654321";
+            let html = '';
+            for (let ri = 0; ri < 8; ri++) {
+                const rank = ranks[ri];
+                let row = `<strong>${8 - ri}</strong> `;
+                for (let fi = 0; fi < 8; fi++) {
+                    const sq = `${files[fi]}${rank}`;
+                    const piece = labels[sq] || '?';
+                    if (piece === 'empty') row += `<span class="empty-sq">· </span>`;
+                    else if (piece === '?') row += `<span class="empty-sq">? </span>`;
+                    else if (piece === piece.toUpperCase()) row += `<span class="white-piece">${piece} </span>`;
+                    else row += `<span class="black-piece">${piece} </span>`;
+                }
+                html += row + '<br>';
+            }
+            html += '  a b c d e f g h';
+            labelSummary.innerHTML = html;
+        }
+
+        // ── Auto-fill from model ──
+        btnAutofill.addEventListener('click', async () => {
+            if (!currentSession || !imageList.length) return;
+            const imgIdx = imageList[currentIdx].replace(/\.\w+$/, '');
+            btnAutofill.disabled = true;
+            btnAutofill.textContent = 'Predicting...';
+
+            try {
+                const resp = await fetch(`/api/labeling/session/${currentSession}/image/${imgIdx}/predictions`);
+                const data = await resp.json();
+                if (data.predictions) {
+                    for (const [sq, pred] of Object.entries(data.predictions)) {
+                        labels[sq] = pred.piece;
+                    }
+                    btnSave.disabled = false;
+                    drawOverlay();
+                    updateLabelSummary();
+                    showStatus('Auto-filled from model predictions', 'success');
+                } else {
+                    showStatus(data.message || 'Prediction failed', 'error');
+                }
+            } catch (e) {
+                showStatus('Failed to get predictions', 'error');
+            } finally {
+                btnAutofill.disabled = false;
+                btnAutofill.textContent = 'Auto-fill from Model';
+            }
+        });
+
+        // ── Clear labels ──
+        btnClear.addEventListener('click', () => {
+            labels = {};
+            btnSave.disabled = true;
+            selectedSquare = null;
+            selectedSquareEl.textContent = 'Click a square on the board';
+            updatePieceSelection();
+            drawOverlay();
+            updateLabelSummary();
+        });
+
+        // ── Save labels ──
+        btnSave.addEventListener('click', async () => {
+            if (!currentSession || !Object.keys(labels).length) return;
+            const imgIdx = imageList[currentIdx].replace(/\.\w+$/, '');
+            btnSave.disabled = true;
+            btnSave.textContent = 'Saving...';
+
+            try {
+                const resp = await fetch(`/api/labeling/session/${currentSession}/image/${imgIdx}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ labels }),
+                });
+                const data = await resp.json();
+                if (resp.ok) {
+                    labeledSet.add(imgIdx);
+                    updateProgress();
+                    showStatus(`Saved ${data.squares_labeled} labels`, 'success');
+                } else {
+                    showStatus(data.message || 'Save failed', 'error');
+                }
+            } catch (e) {
+                showStatus('Failed to save', 'error');
+            } finally {
+                btnSave.disabled = false;
+                btnSave.textContent = 'Save Labels';
+            }
+        });
+
+        // ── Progress ──
+        function updateProgress() {
+            labelProgress.textContent = `Labeled: ${labeledSet.size} / ${imageList.length}`;
+        }
+
+        // ── Status message ──
+        function showStatus(msg, type) {
+            statusMsg.textContent = msg;
+            statusMsg.className = `status-msg ${type}`;
+            statusMsg.style.display = '';
+            setTimeout(() => { statusMsg.style.display = 'none'; }, 3000);
+        }
+
+        // ── Boot ──
+        initPieceGrid();
+        loadSessions();
+    })();
+    </script>
+</body>
+</html>

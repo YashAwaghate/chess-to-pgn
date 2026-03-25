@@ -77,7 +77,8 @@ h1 {
 
 .status-badge.static      { background: rgba(46, 160, 67, 0.2);   color: var(--success); border: 1px solid var(--success); }
 .status-badge.moving      { background: rgba(210, 153, 34, 0.2);  color: var(--moving);  border: 1px solid var(--moving); }
-.status-badge.orientation { background: rgba(88, 166, 255, 0.2);  color: var(--accent);  border: 1px solid var(--accent); }
+.status-badge.orientation,
+.status-badge.grid_correction { background: rgba(88, 166, 255, 0.2);  color: var(--accent);  border: 1px solid var(--accent); }
 .status-badge.setup,
 .status-badge.calibrating { background: var(--border-color); color: white; }
 

@@ -317,6 +317,50 @@ def order_points(pts):
     rect[1], rect[3] = pts[np.argmin(diff)], pts[np.argmax(diff)]
     return rect
 
+def crop_squares_from_grid(board_img, grid, rotation=0):
+    """Crop 64 squares using corrected grid lines (9 x_lines + 9 y_lines).
+
+    Parameters
+    ----------
+    board_img : numpy array — 400×400 warped+rotated board image (BGR).
+    grid      : dict with 'x_lines' (9 ints) and 'y_lines' (9 ints).
+    rotation  : int — 0, 90, 180, or 270. Already applied to the image,
+                used only for mapping physical (row, col) to logical square names.
+
+    Returns
+    -------
+    dict  {square_name: numpy_patch}  e.g. {'a8': array, 'b8': array, ...}
+          Each patch is resized to 50×50.
+    """
+    x_lines = grid['x_lines']
+    y_lines = grid['y_lines']
+    patches = {}
+    files = "abcdefgh"
+    ranks = "87654321"
+
+    for i in range(8):
+        for j in range(8):
+            x1, x2 = x_lines[j], x_lines[j + 1]
+            y1, y2 = y_lines[i], y_lines[i + 1]
+            patch = board_img[y1:y2, x1:x2]
+
+            if rotation == 0:
+                fi, ri = j, i
+            elif rotation == 180:
+                fi, ri = 7 - j, 7 - i
+            elif rotation == 90:
+                fi, ri = i, 7 - j
+            elif rotation == 270:
+                fi, ri = 7 - i, j
+            else:
+                fi, ri = j, i
+
+            square_name = f"{files[fi]}{ranks[ri]}"
+            patches[square_name] = cv2.resize(patch, (50, 50))
+
+    return patches
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--image", required=True)

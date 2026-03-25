@@ -14,14 +14,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Install Python dependencies first (layer cache)
+# Install PyTorch CPU-only build first (smaller image, no CUDA)
+RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application source
 COPY src/ ./src/
 
-# Create writable data/logs dirs (sessions saved here when S3 is not configured)
-RUN mkdir -p data/sessions logs
+# Create writable data/logs/models dirs (trained model can be mounted or downloaded at runtime)
+RUN mkdir -p data/sessions logs models
 
 EXPOSE 8000
 

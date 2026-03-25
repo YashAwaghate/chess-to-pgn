@@ -71,11 +71,12 @@ _A1_ANGLE_LABEL = {(0, 7): 0, (7, 7): 90, (7, 0): 180, (0, 0): 270}
 
 
 class CaptureState(Enum):
-    SETUP       = "SETUP"         # Step 0: enter game metadata
-    CALIBRATING = "CALIBRATING"   # Step 1: click 4 board corners
-    ORIENTATION = "ORIENTATION"   # Step 2: click a1 square
-    STATIC      = "STATIC"
-    MOVING      = "MOVING"
+    SETUP           = "SETUP"           # Step 0: enter game metadata
+    CALIBRATING     = "CALIBRATING"     # Step 1: click 4 board corners
+    ORIENTATION     = "ORIENTATION"     # Step 2: click a1 square
+    GRID_CORRECTION = "GRID_CORRECTION" # Step 3: adjust grid lines
+    STATIC          = "STATIC"
+    MOVING          = "MOVING"
 
 
 class SessionState:
@@ -96,11 +97,9 @@ class SessionState:
         self.board_corners      = []
         self.warped_setup_frame = None
         self.board_grid         = None  # {'x_lines': [...], 'y_lines': [...]}
-        self.hand_exit_time          = None
-        self.cooldown_duration       = 0.75
-        self.last_clean_frame        = None
-        self.consecutive_clean_frames = 0
-        self.save_raw: bool          = False
+        self.hand_exit_time     = None
+        self.cooldown_duration  = 0.5
+        self.save_raw: bool     = False
         self.game_info: dict         = {}   # populated by /api/setup
         self.last_activity_time      = time.time()
 
@@ -155,6 +154,10 @@ class FrameData(BaseModel):
 class ResultData(BaseModel):
     result: str   # "1-0" | "0-1" | "1/2-1/2" | "*"
 
+class GridCorrectionData(BaseModel):
+    x_lines: list[int]  # 9 values
+    y_lines: list[int]  # 9 values
+
 
 # ──────────────────────────── Helpers ────────────────────────────────────────
 
@@ -188,6 +191,8 @@ def write_game_info():
     data = dict(session.game_info)
     data["rotation"]    = session.rotation_angle
     data["total_moves"] = max(0, session.move_number - 1)
+    if session.board_grid:
+        data["board_grid"] = session.board_grid
     json_bytes = json.dumps(data, indent=2).encode()
     s3_key = f"{S3_PREFIX}/{session.game_id}/game_info.json"
     if not _s3_put(s3_key, json_bytes, "application/json"):
@@ -217,7 +222,7 @@ def debug_grid():
 @app.get("/api/state")
 def get_state():
     # Auto-reset stale calibration/orientation sessions on state check
-    if (session.state in (CaptureState.CALIBRATING, CaptureState.ORIENTATION)
+    if (session.state in (CaptureState.CALIBRATING, CaptureState.ORIENTATION, CaptureState.GRID_CORRECTION)
             and time.time() - session.last_activity_time > ACTIVITY_TIMEOUT):
         logger.info("Activity timeout on state check — auto-resetting stale session")
         session.reset()
@@ -234,7 +239,7 @@ def get_state():
 @app.post("/api/setup")
 def setup_game(data: GameSetupData):
     """Step 0: save game metadata and move to CALIBRATING."""
-    if session.state not in (CaptureState.SETUP, CaptureState.CALIBRATING, CaptureState.ORIENTATION):
+    if session.state not in (CaptureState.SETUP, CaptureState.CALIBRATING, CaptureState.ORIENTATION, CaptureState.GRID_CORRECTION):
         return JSONResponse(status_code=400, content={"message": "Game already in progress"})
     if session.state != CaptureState.SETUP:
         logger.info(f"Setup called from {session.state.value} — resetting stale session")
@@ -310,7 +315,7 @@ def calibrate(data: CalibrationData):
 def set_orientation(data: OrientationData):
     """Step 2: user identifies a1. Rotate board so a1 is always bottom-left."""
     session.last_activity_time = time.time()
-    if session.state != CaptureState.ORIENTATION:
+    if session.state not in (CaptureState.ORIENTATION, CaptureState.GRID_CORRECTION):
         return JSONResponse(status_code=400, content={"message": "Not in ORIENTATION state"})
     try:
         corner               = snap_to_corner(data.col, data.row)
@@ -318,13 +323,44 @@ def set_orientation(data: OrientationData):
         session.rotation_angle = _A1_ANGLE_LABEL[corner]
 
         rotated = apply_rotation(session.warped_setup_frame, session.rotation_code)
-        save_and_upload(rotated)
+        session.warped_setup_frame = rotated  # store rotated version for grid correction
+        grid = detect_board_grid(rotated)
+        session.board_grid = grid
 
-        session.state = CaptureState.STATIC
-        logger.info(f"Orientation set: {session.rotation_angle}°. Session active.")
-        return {"status": "success", "rotation_angle": session.rotation_angle}
+        session.state = CaptureState.GRID_CORRECTION
+        logger.info(f"Orientation set: {session.rotation_angle}°. Grid correction next.")
+        return {
+            "status": "success",
+            "rotation_angle": session.rotation_angle,
+            "warped_b64": encode_image(rotated),
+            "grid": grid,
+        }
     except Exception as e:
         logger.error(f"Orientation error: {e}")
+        return JSONResponse(status_code=500, content={"message": str(e)})
+
+
+@app.post("/api/confirm_grid")
+def confirm_grid(data: GridCorrectionData):
+    """Step 3: user corrects grid lines, then game starts."""
+    session.last_activity_time = time.time()
+    if session.state != CaptureState.GRID_CORRECTION:
+        return JSONResponse(status_code=400, content={"message": "Not in GRID_CORRECTION state"})
+    try:
+        if len(data.x_lines) != 9 or len(data.y_lines) != 9:
+            return JSONResponse(status_code=400, content={"message": "Need exactly 9 x and 9 y lines"})
+        # Validate monotonically increasing
+        for i in range(1, 9):
+            if data.x_lines[i] <= data.x_lines[i - 1] or data.y_lines[i] <= data.y_lines[i - 1]:
+                return JSONResponse(status_code=400, content={"message": "Lines must be monotonically increasing"})
+        session.board_grid = {'x_lines': list(data.x_lines), 'y_lines': list(data.y_lines)}
+        # Save the initial board image (move 000)
+        save_and_upload(session.warped_setup_frame)
+        session.state = CaptureState.STATIC
+        logger.info(f"Grid confirmed. Session active. Grid: x={data.x_lines}, y={data.y_lines}")
+        return {"status": "success"}
+    except Exception as e:
+        logger.error(f"Grid confirmation error: {e}")
         return JSONResponse(status_code=500, content={"message": str(e)})
 
 
@@ -349,11 +385,11 @@ def reset_session():
 @app.post("/api/process_frame")
 def process_frame(data: FrameData):
     # Auto-reset stale calibration/orientation sessions
-    if (session.state in (CaptureState.CALIBRATING, CaptureState.ORIENTATION)
+    if (session.state in (CaptureState.CALIBRATING, CaptureState.ORIENTATION, CaptureState.GRID_CORRECTION)
             and time.time() - session.last_activity_time > ACTIVITY_TIMEOUT):
         logger.info("Activity timeout — auto-resetting stale session")
         session.reset()
-    if session.state in (CaptureState.SETUP, CaptureState.CALIBRATING, CaptureState.ORIENTATION):
+    if session.state in (CaptureState.SETUP, CaptureState.CALIBRATING, CaptureState.ORIENTATION, CaptureState.GRID_CORRECTION):
         return {"status": session.state.value.lower()}
     session.last_activity_time = time.time()
 
@@ -367,28 +403,18 @@ def process_frame(data: FrameData):
 
     elif session.state == CaptureState.MOVING:
         if hand_result.over_board:
-            session.hand_exit_time          = None
-            session.consecutive_clean_frames = 0
-            session.last_clean_frame        = None
+            session.hand_exit_time = None
         else:
             if session.hand_exit_time is None:
                 session.hand_exit_time = time.time()
-            # Track frames with no hand present at all (not just off-board)
-            if not hand_result.hand_present:
-                session.consecutive_clean_frames += 1
-                session.last_clean_frame = frame.copy()
-            if (time.time() - session.hand_exit_time >= session.cooldown_duration
-                    and session.consecutive_clean_frames >= 3):
-                capture_frame = session.last_clean_frame if session.last_clean_frame is not None else frame
+            elif time.time() - session.hand_exit_time >= session.cooldown_duration:
                 logger.info(f"Capturing move {session.move_number}")
-                session.state                    = CaptureState.STATIC
-                session.hand_exit_time           = None
-                session.consecutive_clean_frames = 0
-                session.last_clean_frame         = None
+                session.state          = CaptureState.STATIC
+                session.hand_exit_time = None
 
-                warped  = cv2.warpPerspective(capture_frame, session.perspective_matrix, (BOARD_SIZE, BOARD_SIZE))
+                warped  = cv2.warpPerspective(frame, session.perspective_matrix, (BOARD_SIZE, BOARD_SIZE))
                 rotated = apply_rotation(warped, session.rotation_code)
-                save_and_upload(rotated, raw_frame=capture_frame)
+                save_and_upload(rotated, raw_frame=frame)
 
     return {
         "state":     session.state.value,
@@ -565,6 +591,240 @@ def gallery_get_image(session_id: str, filename: str):
             with open(local_path, "rb") as f:
                 return Response(content=f.read(), media_type="image/jpeg")
     return JSONResponse(status_code=404, content={"message": "Image not found"})
+
+
+# ──────────────────────────── PGN Generation API ─────────────────────────────
+
+@app.post("/api/generate_pgn/{game_id}")
+def generate_pgn_endpoint(game_id: str):
+    """Process a captured session and generate PGN."""
+    try:
+        # Add project root to path for pipeline imports
+        if project_root not in sys.path:
+            sys.path.insert(0, project_root)
+        from src.pipeline.process_game import process_game_session
+
+        model_path = os.path.join(project_root, "models", "chess_piece_classifier.pth")
+        if not os.path.exists(model_path):
+            return JSONResponse(status_code=400, content={
+                "message": "Model not found. Train the classifier first.",
+                "model_path": model_path,
+            })
+
+        result = process_game_session(
+            game_id=game_id,
+            model_path=model_path,
+            s3_bucket=S3_BUCKET or None,
+        )
+
+        # Upload PGN to S3 if available
+        pgn_str = result['pgn']
+        if _s3_client and S3_BUCKET:
+            pgn_key = f"{S3_PREFIX}/{game_id}/game.pgn"
+            _s3_client.put_object(Bucket=S3_BUCKET, Key=pgn_key,
+                                  Body=pgn_str.encode(), ContentType="text/plain")
+
+        return {
+            "pgn": pgn_str,
+            "moves": result['moves'],
+            "total_images": len(result['fen_sequence']),
+            "errors": result['errors'],
+            "skipped": result['skipped'],
+        }
+    except FileNotFoundError as e:
+        return JSONResponse(status_code=404, content={"message": str(e)})
+    except Exception as e:
+        logging.exception("PGN generation failed")
+        return JSONResponse(status_code=500, content={"message": str(e)})
+
+
+# ──────────────────────────── Labeling API ───────────────────────────────────
+
+@app.get("/api/labeling/sessions")
+def labeling_list_sessions():
+    """List available sessions with image counts for labeling."""
+    sessions = []
+    if _s3_client and S3_BUCKET:
+        try:
+            paginator = _s3_client.get_paginator("list_objects_v2")
+            # List all game_info.json files to find sessions
+            for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=f"{S3_PREFIX}/",
+                                            Delimiter="/"):
+                for prefix_obj in page.get("CommonPrefixes", []):
+                    session_prefix = prefix_obj["Prefix"]
+                    session_id = session_prefix.rstrip("/").split("/")[-1]
+
+                    # Count warped images
+                    img_count = 0
+                    for img_page in paginator.paginate(Bucket=S3_BUCKET,
+                                                        Prefix=f"{session_prefix}warped/"):
+                        for obj in img_page.get("Contents", []):
+                            if obj["Key"].lower().endswith((".jpg", ".jpeg", ".png")):
+                                img_count += 1
+
+                    # Check for game_info
+                    has_info = False
+                    try:
+                        _s3_client.head_object(Bucket=S3_BUCKET,
+                                               Key=f"{session_prefix}game_info.json")
+                        has_info = True
+                    except Exception:
+                        pass
+
+                    if has_info:
+                        sessions.append({
+                            "session_id": session_id,
+                            "image_count": img_count,
+                        })
+        except Exception as e:
+            logging.exception("Failed listing sessions for labeling")
+    return {"sessions": sessions}
+
+
+@app.get("/api/labeling/session/{game_id}/images")
+def labeling_list_images(game_id: str):
+    """List warped images and existing labels for a session."""
+    images = []
+    labels_exist = set()
+
+    if _s3_client and S3_BUCKET:
+        paginator = _s3_client.get_paginator("list_objects_v2")
+        # List warped images
+        for page in paginator.paginate(Bucket=S3_BUCKET,
+                                        Prefix=f"{S3_PREFIX}/{game_id}/warped/"):
+            for obj in page.get("Contents", []):
+                filename = obj["Key"].split("/")[-1]
+                if filename.lower().endswith((".jpg", ".jpeg", ".png")):
+                    images.append(filename)
+
+        # List existing labels
+        for page in paginator.paginate(Bucket=S3_BUCKET,
+                                        Prefix=f"{S3_PREFIX}/{game_id}/labels/"):
+            for obj in page.get("Contents", []):
+                label_name = obj["Key"].split("/")[-1].replace(".json", "")
+                labels_exist.add(label_name)
+
+    images.sort(key=lambda x: int(os.path.splitext(x)[0]) if os.path.splitext(x)[0].isdigit() else x)
+
+    # Load game_info for grid
+    game_info = {}
+    if _s3_client and S3_BUCKET:
+        try:
+            resp = _s3_client.get_object(Bucket=S3_BUCKET,
+                                          Key=f"{S3_PREFIX}/{game_id}/game_info.json")
+            game_info = json.loads(resp["Body"].read().decode())
+        except Exception:
+            pass
+
+    return {
+        "images": images,
+        "labeled": list(labels_exist),
+        "game_info": game_info,
+    }
+
+
+@app.get("/api/labeling/session/{game_id}/image/{idx}/predictions")
+def labeling_get_predictions(game_id: str, idx: str):
+    """Get classifier predictions for a specific image (auto-fill for labeling)."""
+    try:
+        if project_root not in sys.path:
+            sys.path.insert(0, project_root)
+
+        model_path = os.path.join(project_root, "models", "chess_piece_classifier.pth")
+        if not os.path.exists(model_path):
+            return JSONResponse(status_code=400, content={"message": "Model not trained yet"})
+
+        # Load image
+        if _s3_client and S3_BUCKET:
+            for sub in ("warped/", ""):
+                try:
+                    key = f"{S3_PREFIX}/{game_id}/{sub}{idx}.jpg"
+                    resp = _s3_client.get_object(Bucket=S3_BUCKET, Key=key)
+                    data = resp["Body"].read()
+                    arr = np.frombuffer(data, np.uint8)
+                    img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+                    break
+                except Exception:
+                    img = None
+
+        if img is None:
+            return JSONResponse(status_code=404, content={"message": "Image not found"})
+
+        # Load game_info for grid
+        resp = _s3_client.get_object(Bucket=S3_BUCKET,
+                                      Key=f"{S3_PREFIX}/{game_id}/game_info.json")
+        game_info = json.loads(resp["Body"].read().decode())
+        grid = game_info.get("board_grid", {
+            "x_lines": [i * 50 for i in range(9)],
+            "y_lines": [i * 50 for i in range(9)],
+        })
+        rotation = game_info.get("rotation_angle", 0)
+
+        from src.preprocessing.process_board import crop_squares_from_grid
+        from src.models.inference import ChessPieceClassifier
+
+        patches = crop_squares_from_grid(img, grid, rotation)
+        classifier = ChessPieceClassifier(model_path=model_path)
+        predictions = classifier.predict_board(patches)
+
+        # Convert to serializable format
+        result = {}
+        for sq, (piece, conf) in predictions.items():
+            result[sq] = {"piece": piece, "confidence": round(conf, 4)}
+
+        return {"predictions": result}
+    except Exception as e:
+        logging.exception("Prediction failed")
+        return JSONResponse(status_code=500, content={"message": str(e)})
+
+
+class LabelData(BaseModel):
+    labels: dict  # {square_name: piece_class}
+
+
+@app.post("/api/labeling/session/{game_id}/image/{idx}")
+def labeling_save_labels(game_id: str, idx: str, data: LabelData):
+    """Save manual labels for a specific image."""
+    # Validate labels
+    valid_pieces = {'empty', 'P', 'N', 'B', 'R', 'Q', 'K', 'p', 'n', 'b', 'r', 'q', 'k'}
+    for sq, piece in data.labels.items():
+        if piece not in valid_pieces:
+            return JSONResponse(status_code=400,
+                                content={"message": f"Invalid piece '{piece}' for square {sq}"})
+
+    label_json = json.dumps(data.labels, indent=2)
+
+    if _s3_client and S3_BUCKET:
+        key = f"{S3_PREFIX}/{game_id}/labels/{idx}.json"
+        _s3_client.put_object(Bucket=S3_BUCKET, Key=key,
+                              Body=label_json.encode(), ContentType="application/json")
+    else:
+        # Save locally
+        label_dir = os.path.join(project_root, "data", "sessions", game_id, "labels")
+        os.makedirs(label_dir, exist_ok=True)
+        with open(os.path.join(label_dir, f"{idx}.json"), "w") as f:
+            f.write(label_json)
+
+    return {"status": "saved", "squares_labeled": len(data.labels)}
+
+
+@app.get("/api/labeling/session/{game_id}/image/{idx}/labels")
+def labeling_get_labels(game_id: str, idx: str):
+    """Get existing labels for a specific image."""
+    if _s3_client and S3_BUCKET:
+        try:
+            key = f"{S3_PREFIX}/{game_id}/labels/{idx}.json"
+            resp = _s3_client.get_object(Bucket=S3_BUCKET, Key=key)
+            labels = json.loads(resp["Body"].read().decode())
+            return {"labels": labels, "exists": True}
+        except Exception:
+            return {"labels": {}, "exists": False}
+
+    local_path = os.path.join(project_root, "data", "sessions", game_id, "labels", f"{idx}.json")
+    if os.path.exists(local_path):
+        with open(local_path) as f:
+            return {"labels": json.load(f), "exists": True}
+    return {"labels": {}, "exists": False}
 
 
 # ──────────────────────────── Static files (must be last) ────────────────────

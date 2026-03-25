@@ -16,7 +16,10 @@ python-dotenv>=1.0
 requests>=2.31
 tqdm>=4.66
 
-# ML (for future piece classifier — not needed for capture/deploy)
-# torch==2.1.0
-# torchvision==0.16.0
-# pytorch-lightning==2.1.0
+# Chess logic
+python-chess>=1.10
+
+# ML — piece classifier (install torch CPU separately, see Dockerfile)
+# pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+torch>=2.0
+torchvision>=0.15

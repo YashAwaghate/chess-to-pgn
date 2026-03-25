@@ -27,6 +27,13 @@ const btnConfirmA1    = document.getElementById('btn-confirm-a1');
 const btnRedoCorners  = document.getElementById('btn-redo-corners');
 const orientHint      = document.getElementById('orientation-hint');
 
+const gridCorrPanel    = document.getElementById('grid-correction-panel');
+const gridBoardImg     = document.getElementById('grid-board-img');
+const gridCanvas       = document.getElementById('grid-canvas');
+const gctx             = gridCanvas.getContext('2d');
+const btnConfirmGrid   = document.getElementById('btn-confirm-grid');
+const btnRedoOrient    = document.getElementById('btn-redo-orientation');
+
 const statusBadge    = document.getElementById('app-status');
 const infoWhite      = document.getElementById('info-white');
 const infoBlack      = document.getElementById('info-black');
@@ -42,10 +49,14 @@ const resultDisplay  = document.getElementById('result-display');
 const btnReset       = document.getElementById('btn-reset');
 
 // ─── App state ────────────────────────────────────────────────────────────────
-let isCalibrated = false;
-let sessionLoop  = null;
-let selectedA1   = null;
-let gridLines    = null;
+let isCalibrated  = false;
+let sessionLoop   = null;
+let selectedA1    = null;
+let gridLines     = null;
+let correctedGrid = null;   // {x_lines: [...], y_lines: [...]}
+let gridDragIdx   = -1;     // index of line being dragged (0-8 for x, 9-17 for y)
+let gridDragType  = null;   // 'x' or 'y'
+const GRID_HIT_R  = 20;    // hit radius in display pixels
 
 // ─── Setup form ──────────────────────────────────────────────────────────────
 
@@ -504,14 +515,10 @@ btnConfirmA1.addEventListener('click', async () => {
         });
         const data = await res.json();
         if (data.status === 'success') {
-            isCalibrated = true;
-            orientPanel.style.display   = 'none';
-            video.style.display         = '';
-            overlayCanvas.style.display = '';
-            ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-            infoRotation.innerHTML      = `${data.rotation_angle}&deg;`;
-            endGamePanel.style.display  = '';
-            startSessionLoop();
+            infoRotation.innerHTML = `${data.rotation_angle}&deg;`;
+            // Show grid correction screen
+            orientPanel.style.display    = 'none';
+            showGridCorrectionStep(data.warped_b64, data.grid);
         } else {
             alert('Orientation failed: ' + (data.message || ''));
             btnConfirmA1.disabled  = false;
@@ -535,6 +542,173 @@ btnRedoCorners.addEventListener('click', () => {
     cropBox = defaultCropBox();
     drawCropBox();
     updateStatusBadge('CALIBRATING');
+});
+
+// ─── Step 3: Grid correction ─────────────────────────────────────────────────
+
+function showGridCorrectionStep(warpedB64, grid) {
+    correctedGrid = { x_lines: [...grid.x_lines], y_lines: [...grid.y_lines] };
+    gridCorrPanel.style.display = 'flex';
+    gridBoardImg.src = warpedB64;
+    gridBoardImg.onload = () => {
+        gridCanvas.width  = gridBoardImg.naturalWidth  || 400;
+        gridCanvas.height = gridBoardImg.naturalHeight || 400;
+        drawGridLines();
+    };
+    btnConfirmGrid.disabled  = false;
+    btnConfirmGrid.innerText = 'Confirm Grid';
+    updateStatusBadge('GRID_CORRECTION');
+}
+
+function drawGridLines() {
+    if (!correctedGrid) return;
+    const cW = gridCanvas.width;
+    const cH = gridCanvas.height;
+    const iW = gridBoardImg.naturalWidth  || 400;
+    const iH = gridBoardImg.naturalHeight || 400;
+    const sx = cW / iW;
+    const sy = cH / iH;
+
+    gctx.clearRect(0, 0, cW, cH);
+
+    // Draw vertical lines
+    correctedGrid.x_lines.forEach((x, i) => {
+        const dragging = gridDragType === 'x' && gridDragIdx === i;
+        gctx.strokeStyle = dragging ? 'rgba(255,255,100,0.9)' : 'rgba(88, 166, 255, 0.65)';
+        gctx.lineWidth   = dragging ? 2.5 : 1.5;
+        gctx.beginPath();
+        gctx.moveTo(x * sx, 0);
+        gctx.lineTo(x * sx, cH);
+        gctx.stroke();
+    });
+
+    // Draw horizontal lines
+    correctedGrid.y_lines.forEach((y, i) => {
+        const dragging = gridDragType === 'y' && gridDragIdx === i;
+        gctx.strokeStyle = dragging ? 'rgba(255,255,100,0.9)' : 'rgba(88, 166, 255, 0.65)';
+        gctx.lineWidth   = dragging ? 2.5 : 1.5;
+        gctx.beginPath();
+        gctx.moveTo(0, y * sy);
+        gctx.lineTo(cW, y * sy);
+        gctx.stroke();
+    });
+}
+
+function hitGridLine(clientX, clientY) {
+    const rect = gridCanvas.getBoundingClientRect();
+    const dispX = clientX - rect.left;
+    const dispY = clientY - rect.top;
+    const iW = gridBoardImg.naturalWidth  || 400;
+    const iH = gridBoardImg.naturalHeight || 400;
+    const sx = rect.width  / iW;
+    const sy = rect.height / iH;
+
+    let bestDist = GRID_HIT_R;
+    let bestType = null;
+    let bestIdx  = -1;
+
+    correctedGrid.x_lines.forEach((x, i) => {
+        const d = Math.abs(dispX - x * sx);
+        if (d < bestDist) { bestDist = d; bestType = 'x'; bestIdx = i; }
+    });
+    correctedGrid.y_lines.forEach((y, i) => {
+        const d = Math.abs(dispY - y * sy);
+        if (d < bestDist) { bestDist = d; bestType = 'y'; bestIdx = i; }
+    });
+
+    return bestIdx >= 0 ? { type: bestType, idx: bestIdx } : null;
+}
+
+function gridClientToImage(clientX, clientY) {
+    const rect = gridCanvas.getBoundingClientRect();
+    const iW = gridBoardImg.naturalWidth  || 400;
+    const iH = gridBoardImg.naturalHeight || 400;
+    return {
+        x: (clientX - rect.left) * iW / rect.width,
+        y: (clientY - rect.top)  * iH / rect.height,
+    };
+}
+
+function updateGridDrag(clientX, clientY) {
+    if (gridDragIdx < 0 || !gridDragType) return;
+    const img = gridClientToImage(clientX, clientY);
+    const lines = gridDragType === 'x' ? correctedGrid.x_lines : correctedGrid.y_lines;
+    const val = Math.round(gridDragType === 'x' ? img.x : img.y);
+    const maxVal = gridDragType === 'x' ? (gridBoardImg.naturalWidth || 400) : (gridBoardImg.naturalHeight || 400);
+
+    // Constrain: can't cross neighbors
+    const minVal = gridDragIdx > 0 ? lines[gridDragIdx - 1] + 1 : 0;
+    const maxAllowed = gridDragIdx < 8 ? lines[gridDragIdx + 1] - 1 : maxVal;
+    lines[gridDragIdx] = Math.max(minVal, Math.min(maxAllowed, val));
+    drawGridLines();
+}
+
+// Mouse handlers
+gridCanvas.addEventListener('mousedown', e => {
+    const hit = hitGridLine(e.clientX, e.clientY);
+    if (hit) { gridDragType = hit.type; gridDragIdx = hit.idx; drawGridLines(); }
+});
+document.addEventListener('mousemove', e => {
+    if (gridDragIdx >= 0) updateGridDrag(e.clientX, e.clientY);
+});
+document.addEventListener('mouseup', () => {
+    if (gridDragIdx >= 0) { gridDragIdx = -1; gridDragType = null; drawGridLines(); }
+});
+
+// Touch handlers
+gridCanvas.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    const hit = hitGridLine(t.clientX, t.clientY);
+    if (hit) { gridDragType = hit.type; gridDragIdx = hit.idx; drawGridLines(); e.preventDefault(); }
+}, { passive: false });
+gridCanvas.addEventListener('touchmove', e => {
+    if (gridDragIdx >= 0) { updateGridDrag(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); }
+}, { passive: false });
+gridCanvas.addEventListener('touchend', () => {
+    if (gridDragIdx >= 0) { gridDragIdx = -1; gridDragType = null; drawGridLines(); }
+});
+
+// Confirm grid
+btnConfirmGrid.addEventListener('click', async () => {
+    if (!correctedGrid) return;
+    btnConfirmGrid.disabled  = true;
+    btnConfirmGrid.innerText = 'Confirming…';
+    try {
+        const res = await fetch('/api/confirm_grid', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ x_lines: correctedGrid.x_lines, y_lines: correctedGrid.y_lines }),
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+            isCalibrated = true;
+            gridCorrPanel.style.display = 'none';
+            video.style.display         = '';
+            overlayCanvas.style.display = '';
+            ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            endGamePanel.style.display  = '';
+            startSessionLoop();
+        } else {
+            alert('Grid confirmation failed: ' + (data.message || ''));
+            btnConfirmGrid.disabled  = false;
+            btnConfirmGrid.innerText = 'Confirm Grid';
+        }
+    } catch (e) {
+        console.error(e);
+        btnConfirmGrid.disabled  = false;
+        btnConfirmGrid.innerText = 'Confirm Grid';
+    }
+});
+
+// Redo orientation
+btnRedoOrient.addEventListener('click', () => {
+    gridCorrPanel.style.display = 'none';
+    orientPanel.style.display   = 'flex';
+    selectedA1 = null;
+    btnConfirmA1.disabled  = true;
+    btnConfirmA1.innerText = 'Confirm';
+    orientBtns.forEach(b => b.classList.remove('selected'));
+    updateStatusBadge('ORIENTATION');
 });
 
 // ─── End game / result ────────────────────────────────────────────────────────
@@ -603,7 +777,9 @@ btnReset.addEventListener('click', async () => {
     if (sessionLoop) clearInterval(sessionLoop);
     isCalibrated = false;
     cropBox      = null;
-    selectedA1   = null;
+    selectedA1    = null;
+    correctedGrid = null;
+    gridCorrPanel.style.display = 'none';
     if (video.srcObject) {
         video.srcObject.getTracks().forEach(t => t.stop());
         video.srcObject = null;
@@ -631,7 +807,7 @@ fetchState().then(data => {
         if (data.game_info) populateGameInfo(data.game_info);
         endGamePanel.style.display = '';
         initCamera().then(startSessionLoop);
-    } else if (data.state === 'CALIBRATING' || data.state === 'ORIENTATION') {
+    } else if (data.state === 'CALIBRATING' || data.state === 'ORIENTATION' || data.state === 'GRID_CORRECTION') {
         // Stale mid-calibration — reset and start fresh
         fetch('/api/reset', { method: 'POST' });
     }
