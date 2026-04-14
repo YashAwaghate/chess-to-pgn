@@ -19,7 +19,7 @@ tqdm>=4.66
 # Chess logic
 python-chess>=1.10
 
-# ML — piece classifier (install torch CPU separately, see Dockerfile)
-# pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+# ML — piece classifier (CUDA 12.4 build for GTX 1050)
+# pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 torch>=2.0
 torchvision>=0.15

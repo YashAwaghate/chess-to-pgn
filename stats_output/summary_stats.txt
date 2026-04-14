@@ -1,0 +1,90 @@
+Chess-to-PGN — ChessPieceCNN Evaluation Summary
+==========================================================
+Date: 2026-04-14
+Games: [0, 33, 76]
+
+Game 0:
+  Frames:          101
+  Avg accuracy:    88.2%
+  Frames >=90%:    59/101 (58.4%)
+  Min/Max:         35.9% / 98.4%
+  Moves detected:  26/100 (26%)
+    Sure:          2
+    Unsure:        21
+    Consensus:     3
+    Failed:        77
+  Re-syncs:        11
+  PGN preview:
+    [Event "ChessReD Game 0"]
+[Site "chess-to-pgn"]
+[Date "2026.04.14"]
+[Round "-"]
+[White "White"]
+[Black "Black"]
+[Result "*"]
+
+1. Rhf1 { ?? } Rh8 { ?? } 2. gxh6 { ? } gxh6 { ? } 3. e4 { ? } Rxe4 { ? } 4. a4
+{ ? } Re4 { ? } 5. Nc2 { ? } d4 { ? } 6. Nxd4 { ? } Nxe3 { ? } 7. Rd1 { ? } Nxd1
+{ ? } 8. Rf1 
+
+Game 33:
+  Frames:          101
+  Avg accuracy:    78.7%
+  Frames >=90%:    29/101 (28.7%)
+  Min/Max:         32.8% / 98.4%
+  Moves detected:  14/100 (14%)
+    Sure:          1
+    Unsure:        7
+    Consensus:     6
+    Failed:        92
+  Re-syncs:        11
+  PGN preview:
+    [Event "ChessReD Game 33"]
+[Site "chess-to-pgn"]
+[Date "2026.04.14"]
+[Round "-"]
+[White "White"]
+[Black "Black"]
+[Result "*"]
+
+1. Rb1 { ?? } Nd5 { ?? } 2. a5 { ?? } h5 { ?? } 3. e4 { ?? } Bd6 { ? } 4. e4 f5
+{ ? } 5. Kh3 { ? } fxe4 { ? } 6. fxe4 { ? } g6 { ?? } 7. f6 { ? } gxf6 { ? } *
+
+
+Game 76:
+  Frames:          100
+  Avg accuracy:    83.5%
+  Frames >=90%:    33/100 (33.0%)
+  Min/Max:         48.4% / 98.4%
+  Moves detected:  19/99 (19%)
+    Sure:          0
+    Unsure:        13
+    Consensus:     6
+    Failed:        86
+  Re-syncs:        9
+  PGN preview:
+    [Event "ChessReD Game 76"]
+[Site "chess-to-pgn"]
+[Date "2026.04.14"]
+[Round "-"]
+[White "White"]
+[Black "Black"]
+[Result "*"]
+
+1. Rc1 { ?? } a6 { ?? } 2. a3 { ? } d4 { ?? } 3. g3 { ?? } h5 { ?? } 4. Rd5 { ?
+} b6 { ? } 5. b3 { ? } Rb4 { ? } 6. e4 { ? } h4 { ? } 7. e5 { ? } f5 { ? } 8. f3
+{ ? } f4 { ?
+
+OVERALL
+----------------------------------------
+  Total frames:       302
+  Avg accuracy:       83.5%
+  Frames >=90%:       121/302 (40.1%)
+  Total moves det:    59/299 (19.7%)
+  Sure:               3
+  Feedback-corrected: 41
+  Consensus:          15
+  Failed:             255
+  Opening avg:  81.9%  (n=13)
+  Middlegame avg:  76.1%  (n=24)
+  Endgame avg:  84.2%  (n=265)

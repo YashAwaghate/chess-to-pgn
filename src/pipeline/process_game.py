@@ -17,7 +17,7 @@ import cv2
 import numpy as np
 
 from src.preprocessing.process_board import crop_squares_from_grid
-from src.models.inference import ChessPieceClassifier
+from src.models.inference import ChessPieceClassifier, PretrainedBoardClassifier
 from src.pipeline.fen_generator import predictions_to_fen, fen_position_only
 from src.pipeline.move_detector import detect_moves_sequence
 from src.pipeline.pgn_generator import generate_pgn, save_pgn
@@ -43,11 +43,17 @@ def load_session_from_local(session_dir: str) -> dict:
     else:
         img_dir = session_dir
 
-    # Collect image files sorted by name (00.jpg, 01.jpg, ...)
-    image_files = sorted([
-        f for f in os.listdir(img_dir)
-        if re.match(r'^\d+\.(jpg|jpeg|png)$', f, re.IGNORECASE)
-    ], key=lambda x: int(os.path.splitext(x)[0]))
+    # Collect image files — accept both "000.jpg" and legacy "SESSION_XXX_000.jpg" formats
+    def _frame_number(fname):
+        stem = os.path.splitext(fname)[0]
+        m = re.search(r'(\d+)$', stem)
+        return int(m.group(1)) if m else 0
+
+    image_files = sorted(
+        [f for f in os.listdir(img_dir)
+         if re.search(r'\d+\.(jpg|jpeg|png)$', f, re.IGNORECASE)],
+        key=_frame_number,
+    )
 
     images = []
     for img_file in image_files:
@@ -86,12 +92,17 @@ def load_session_from_s3(game_id: str, bucket: str = None) -> dict:
     warped_prefix = f"{prefix}warped/"
     paginator = s3.get_paginator('list_objects_v2')
 
+    def _s3_frame_number(key):
+        stem = os.path.splitext(key.split('/')[-1])[0]
+        m = re.search(r'(\d+)$', stem)
+        return int(m.group(1)) if m else 0
+
     image_keys = []
     for page in paginator.paginate(Bucket=bucket, Prefix=warped_prefix):
         for obj in page.get('Contents', []):
             key = obj['Key']
             filename = key.split('/')[-1]
-            if re.match(r'^\d+\.(jpg|jpeg|png)$', filename, re.IGNORECASE):
+            if re.search(r'\d+\.(jpg|jpeg|png)$', filename, re.IGNORECASE):
                 image_keys.append(key)
 
     # Fallback: check root prefix (old flat structure)
@@ -100,11 +111,11 @@ def load_session_from_s3(game_id: str, bucket: str = None) -> dict:
             for obj in page.get('Contents', []):
                 key = obj['Key']
                 filename = key.split('/')[-1]
-                if re.match(r'^\d+\.(jpg|jpeg|png)$', filename, re.IGNORECASE):
+                if re.search(r'\d+\.(jpg|jpeg|png)$', filename, re.IGNORECASE):
                     image_keys.append(key)
 
-    # Sort by numeric filename
-    image_keys.sort(key=lambda k: int(os.path.splitext(k.split('/')[-1])[0]))
+    # Sort by trailing numeric value in filename
+    image_keys.sort(key=_s3_frame_number)
 
     images = []
     for key in image_keys:
@@ -120,16 +131,19 @@ def load_session_from_s3(game_id: str, bucket: str = None) -> dict:
 
 def process_game_session(game_id: str = None, local_dir: str = None,
                          model_path: str = 'models/chess_piece_classifier.pth',
-                         s3_bucket: str = None, result: str = '*') -> dict:
+                         s3_bucket: str = None, result: str = '*',
+                         fuzzy_threshold: int = 62,
+                         classifier: str = 'patch') -> dict:
     """Full pipeline: session images → PGN.
 
     Parameters
     ----------
-    game_id    : str — S3 session ID (used if local_dir is None)
-    local_dir  : str — local session directory (takes priority over game_id)
-    model_path : str — path to trained classifier checkpoint
-    s3_bucket  : str — S3 bucket name (optional, uses env var default)
-    result     : str — game result for PGN header
+    game_id     : str — S3 session ID (used if local_dir is None)
+    local_dir   : str — local session directory (takes priority over game_id)
+    model_path  : str — path to trained classifier checkpoint
+    s3_bucket   : str — S3 bucket name (optional, uses env var default)
+    result      : str — game result for PGN header
+    classifier  : str — 'patch' (custom ResidualCNN) or 'pretrained' (ChessReD ResNeXt-101)
 
     Returns
     -------
@@ -165,26 +179,43 @@ def process_game_session(game_id: str = None, local_dir: str = None,
         result = game_info['result']
 
     # 3. Load classifier
-    classifier = ChessPieceClassifier(model_path=model_path)
-    print(f"Loaded classifier from {model_path}")
+    if classifier == 'pretrained':
+        pretrained_path = os.path.join(os.path.dirname(model_path),
+                                       '..', 'src', 'models', 'pretrained', 'checkpoint.ckpt')
+        pretrained_path = os.path.normpath(pretrained_path)
+        clf = PretrainedBoardClassifier(checkpoint_path=pretrained_path)
+        print(f"Loaded pretrained ResNeXt classifier from {pretrained_path}")
+    else:
+        clf = ChessPieceClassifier(model_path=model_path)
+        print(f"Loaded patch classifier from {model_path}")
 
     # 4. Process each image → FEN
     fen_sequence = []
+    all_confidences = []
     print(f"Processing {len(images)} board images...")
 
     for i, img in enumerate(images):
         patches = crop_squares_from_grid(img, grid, rotation)
-        predictions = classifier.predict_board(patches)
+        predictions = clf.predict_board(patches)
         fen = predictions_to_fen(predictions, move_number=i + 1)
         fen_pos = fen_position_only(fen)
         fen_sequence.append(fen_pos)
 
-        if i % 10 == 0:
-            print(f"  Image {i:3d}: {fen_pos[:30]}...")
+        confs = [c for _, c in predictions.values()]
+        avg_conf = sum(confs) / len(confs) if confs else 0.0
+        low_conf = [sq for sq, (_, c) in predictions.items() if c < 0.5]
+        all_confidences.append(avg_conf)
+
+        if i % 10 == 0 or low_conf:
+            low_str = f" LOW:{','.join(low_conf)}" if low_conf else ""
+            print(f"  Image {i:3d}: avg_conf={avg_conf:.3f}{low_str} | {fen_pos[:25]}...")
+
+    overall_avg = sum(all_confidences) / len(all_confidences) if all_confidences else 0.0
+    print(f"Classifier confidence: avg={overall_avg:.3f} over {len(images)} images")
 
     # 5. Detect moves from FEN sequence
-    print("Detecting moves...")
-    move_result = detect_moves_sequence(fen_sequence)
+    print(f"Detecting moves (fuzzy_threshold={fuzzy_threshold})...")
+    move_result = detect_moves_sequence(fen_sequence, fuzzy_threshold=fuzzy_threshold)
 
     moves = move_result['moves']
     errors = move_result['errors']
@@ -212,6 +243,10 @@ def main():
     parser.add_argument('--s3_bucket', help='S3 bucket name')
     parser.add_argument('--result', default='*', help='Game result (1-0, 0-1, 1/2-1/2, *)')
     parser.add_argument('--output', help='Output PGN file path')
+    parser.add_argument('--fuzzy_threshold', type=int, default=62,
+                        help='Min squares matching for fuzzy move detection (default 62/64)')
+    parser.add_argument('--classifier', default='patch', choices=['patch', 'pretrained'],
+                        help='patch = custom ResidualCNN, pretrained = ChessReD ResNeXt-101')
     args = parser.parse_args()
 
     result = process_game_session(
@@ -220,6 +255,8 @@ def main():
         model_path=args.model_path,
         s3_bucket=args.s3_bucket,
         result=args.result,
+        fuzzy_threshold=args.fuzzy_threshold,
+        classifier=args.classifier,
     )
 
     print("\n--- Generated PGN ---")

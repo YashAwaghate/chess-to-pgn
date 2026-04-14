@@ -147,7 +147,7 @@ def main(args):
                 'class_to_idx': class_to_idx,
                 'num_classes': num_classes,
             }, save_path)
-            print(f"  ** New best model saved (val_acc={val_acc:.4f}) → {save_path}")
+            print(f"  ** New best model saved (val_acc={val_acc:.4f}) -> {save_path}")
 
     print(f"\nTraining complete. Best val accuracy: {best_val_acc:.4f}")
 

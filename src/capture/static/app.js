@@ -388,7 +388,7 @@ btnCalibrate.addEventListener('click', async () => {
         });
         const data = await res.json();
         if (data.status === 'success') {
-            showOrientationStep(data.warped_b64, data.grid, data.suggested_a1);
+            showGridCorrectionStep(data.warped_b64, data.grid);
         } else {
             alert('Calibration failed: ' + (data.message || ''));
             btnCalibrate.innerText = 'Calibrate';
@@ -516,9 +516,14 @@ btnConfirmA1.addEventListener('click', async () => {
         const data = await res.json();
         if (data.status === 'success') {
             infoRotation.innerHTML = `${data.rotation_angle}&deg;`;
-            // Show grid correction screen
-            orientPanel.style.display    = 'none';
-            showGridCorrectionStep(data.warped_b64, data.grid);
+            // Grid already confirmed — start session
+            isCalibrated = true;
+            orientPanel.style.display   = 'none';
+            video.style.display         = '';
+            overlayCanvas.style.display = '';
+            ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            endGamePanel.style.display  = '';
+            startSessionLoop();
         } else {
             alert('Orientation failed: ' + (data.message || ''));
             btnConfirmA1.disabled  = false;
@@ -531,17 +536,15 @@ btnConfirmA1.addEventListener('click', async () => {
     }
 });
 
+// "Redo Grid" — go back from orientation step to grid correction
 btnRedoCorners.addEventListener('click', () => {
-    orientPanel.style.display   = 'none';
-    video.style.display         = '';
-    overlayCanvas.style.display = '';
-    calibControls.style.display = '';
+    orientPanel.style.display    = 'none';
+    gridCorrPanel.style.display  = 'flex';
     selectedA1 = null;
-    btnCalibrate.disabled  = false;
-    btnCalibrate.innerText = 'Calibrate';
-    cropBox = defaultCropBox();
-    drawCropBox();
-    updateStatusBadge('CALIBRATING');
+    btnConfirmA1.disabled  = true;
+    btnConfirmA1.innerText = 'Confirm';
+    orientBtns.forEach(b => b.classList.remove('selected'));
+    updateStatusBadge('GRID_CORRECTION');
 });
 
 // ─── Step 3: Grid correction ─────────────────────────────────────────────────
@@ -631,14 +634,16 @@ function gridClientToImage(clientX, clientY) {
 
 function updateGridDrag(clientX, clientY) {
     if (gridDragIdx < 0 || !gridDragType) return;
+    // Outer lines (index 0 and 8) are locked to board edges — not draggable
+    if (gridDragIdx === 0 || gridDragIdx === 8) return;
     const img = gridClientToImage(clientX, clientY);
     const lines = gridDragType === 'x' ? correctedGrid.x_lines : correctedGrid.y_lines;
     const val = Math.round(gridDragType === 'x' ? img.x : img.y);
     const maxVal = gridDragType === 'x' ? (gridBoardImg.naturalWidth || 400) : (gridBoardImg.naturalHeight || 400);
 
-    // Constrain: can't cross neighbors
-    const minVal = gridDragIdx > 0 ? lines[gridDragIdx - 1] + 1 : 0;
-    const maxAllowed = gridDragIdx < 8 ? lines[gridDragIdx + 1] - 1 : maxVal;
+    // Constrain: can't cross neighbors, can't go past edges
+    const minVal = lines[gridDragIdx - 1] + 1;
+    const maxAllowed = lines[gridDragIdx + 1] - 1;
     lines[gridDragIdx] = Math.max(minVal, Math.min(maxAllowed, val));
     drawGridLines();
 }
@@ -681,13 +686,8 @@ btnConfirmGrid.addEventListener('click', async () => {
         });
         const data = await res.json();
         if (data.status === 'success') {
-            isCalibrated = true;
             gridCorrPanel.style.display = 'none';
-            video.style.display         = '';
-            overlayCanvas.style.display = '';
-            ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-            endGamePanel.style.display  = '';
-            startSessionLoop();
+            showOrientationStep(data.warped_b64, data.grid, data.suggested_a1);
         } else {
             alert('Grid confirmation failed: ' + (data.message || ''));
             btnConfirmGrid.disabled  = false;
@@ -700,15 +700,17 @@ btnConfirmGrid.addEventListener('click', async () => {
     }
 });
 
-// Redo orientation
+// "Redo Corners" — go back from grid correction to corner calibration
 btnRedoOrient.addEventListener('click', () => {
-    gridCorrPanel.style.display = 'none';
-    orientPanel.style.display   = 'flex';
-    selectedA1 = null;
-    btnConfirmA1.disabled  = true;
-    btnConfirmA1.innerText = 'Confirm';
-    orientBtns.forEach(b => b.classList.remove('selected'));
-    updateStatusBadge('ORIENTATION');
+    gridCorrPanel.style.display  = 'none';
+    video.style.display          = '';
+    overlayCanvas.style.display  = '';
+    calibControls.style.display  = '';
+    btnCalibrate.disabled  = false;
+    btnCalibrate.innerText = 'Calibrate';
+    cropBox = defaultCropBox();
+    drawCropBox();
+    updateStatusBadge('CALIBRATING');
 });
 
 // ─── End game / result ────────────────────────────────────────────────────────

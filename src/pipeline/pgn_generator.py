@@ -5,7 +5,8 @@ Generate PGN (Portable Game Notation) from a list of SAN moves and game metadata
 import datetime
 
 
-def generate_pgn(moves: list, game_info: dict, result: str = '*') -> str:
+def generate_pgn(moves: list, game_info: dict, result: str = '*',
+                 move_tags: list = None) -> str:
     """Build a PGN string from moves and game metadata.
 
     Parameters
@@ -50,6 +51,13 @@ def generate_pgn(moves: list, game_info: dict, result: str = '*') -> str:
             movetext_parts.append(f'{move_num}. {san}')
         else:
             movetext_parts.append(san)
+        # Append PGN comment for non-sure moves
+        if move_tags and i < len(move_tags):
+            tag = move_tags[i]
+            if tag == 'unsure':
+                movetext_parts.append('{ ? }')
+            elif tag.startswith('consensus_'):
+                movetext_parts.append('{ ?? }')
 
     movetext = ' '.join(movetext_parts)
     if movetext:

@@ -1,0 +1,191 @@
+ChessReD End-to-End Demo — Accuracy Report
+==============================================================
+Date:                2026-04-14
+Split:               test
+Game ID:             0
+Frames processed:    41
+Moves detected:      35  (sure=23, unsure=12, consensus=0)
+Move detect errors:  5
+Consensus re-syncs:  1
+Avg square accuracy: 96.9%
+Frames >=90% acc:    40/41
+Max adjustments:     6
+Consensus window:    5
+PGN:                 demo_output\demo_game.pgn
+
+Per-Frame Results:  [sure] = exact match  [unsure] = feedback correction applied
+--------------------------------------------------------------
+Frame  0 (id=    0, move_id=  0): 64/64 = 100.0%  move=—
+  GT:   rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR
+  Pred: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR
+Frame  1 (id=    1, move_id=  1): 63/64 =  98.4%  move=b4 [sure]
+  GT:   rnbqkbnr/pppppppp/8/8/1P6/8/P1PPPPPP/RNBQKBNR
+  Pred: rnbqkbnr/pppppppp/8/8/1P6/8/PPPPPPPP/RNBQKBNR
+  Classifier errors [1]: b2:empty->P(100%)
+Frame  2 (id=    2, move_id=  2): 63/64 =  98.4%  move=d5 [sure]
+  GT:   rnbqkbnr/ppp1pppp/8/3p4/1P6/8/P1PPPPPP/RNBQKBNR
+  Pred: rnbqkbnr/ppp1pppp/8/3p4/1P6/8/PPPPPPPP/RNBQKBNR
+  Classifier errors [1]: b2:empty->P(69%)
+Frame  3 (id=    3, move_id=  3): 63/64 =  98.4%  move=Bb2 [sure]
+  GT:   rnbqkbnr/ppp1pppp/8/3p4/1P6/8/PBPPPPPP/RN1QKBNR
+  Pred: rnbqkbnr/ppp1pppp/8/3p4/1P6/8/PPPPPPPP/RN1QKBNR
+  Classifier errors [1]: b2:B->P(100%)
+Frame  4 (id=    4, move_id=  4): 63/64 =  98.4%  move=Bf5 [sure]
+  GT:   rn1qkbnr/ppp1pppp/8/3p1b2/1P6/8/PBPPPPPP/RN1QKBNR
+  Pred: rn1qkbnr/ppp1pppp/8/3p1b2/1P6/8/PPPPPPPP/RN1QKBNR
+  Classifier errors [1]: b2:B->P(100%)
+Frame  5 (id=    5, move_id=  5): 63/64 =  98.4%  move=Nf3 [sure]
+  GT:   rn1qkbnr/ppp1pppp/8/3p1b2/1P6/5N2/PBPPPPPP/RN1QKB1R
+  Pred: rn1qkbnr/ppp1pppp/8/3p1b2/1P6/5N2/PPPPPPPP/RN1QKB1R
+  Classifier errors [1]: b2:B->P(100%)
+Frame  6 (id=    6, move_id=  6): 63/64 =  98.4%  move=e6 [sure]
+  GT:   rn1qkbnr/ppp2ppp/4p3/3p1b2/1P6/5N2/PBPPPPPP/RN1QKB1R
+  Pred: rn1qkbnr/ppp2ppp/4p3/3p1b2/1P6/5N2/PPPPPPPP/RN1QKB1R
+  Classifier errors [1]: b2:B->P(100%)
+Frame  7 (id=    7, move_id=  7): 63/64 =  98.4%  move=e3 [sure]
+  GT:   rn1qkbnr/ppp2ppp/4p3/3p1b2/1P6/4PN2/PBPP1PPP/RN1QKB1R
+  Pred: rn1qkbnr/ppp2ppp/4p3/3p1b2/1P6/4PN2/PPPP1PPP/RN1QKB1R
+  Classifier errors [1]: b2:B->P(100%)
+Frame  8 (id=    8, move_id=  8): 63/64 =  98.4%  move=Nf6 [sure]
+  GT:   rn1qkb1r/ppp2ppp/4pn2/3p1b2/1P6/4PN2/PBPP1PPP/RN1QKB1R
+  Pred: rn1qkb1r/ppp2ppp/4pn2/3p1b2/1P6/4PN2/PPPP1PPP/RN1QKB1R
+  Classifier errors [1]: b2:B->P(100%)
+Frame  9 (id=    9, move_id=  9): 63/64 =  98.4%  move=a3 [sure]
+  GT:   rn1qkb1r/ppp2ppp/4pn2/3p1b2/1P6/P3PN2/1BPP1PPP/RN1QKB1R
+  Pred: rn1qkb1r/ppp2ppp/4pn2/3p1b2/1P6/P3PN2/1PPP1PPP/RN1QKB1R
+  Classifier errors [1]: b2:B->P(74%)
+Frame 10 (id=   10, move_id= 10): 63/64 =  98.4%  move=Nbd7 [sure]
+  GT:   r2qkb1r/pppn1ppp/4pn2/3p1b2/1P6/P3PN2/1BPP1PPP/RN1QKB1R
+  Pred: r2qkb1r/pppn1ppp/4pn2/3p1b2/1P6/P3PN2/1BP2PPP/RN1QKB1R
+  Classifier errors [1]: d2:P->empty(100%)
+Frame 11 (id=   11, move_id= 11): 63/64 =  98.4%  move=c4 [sure]
+  GT:   r2qkb1r/pppn1ppp/4pn2/3p1b2/1PP5/P3PN2/1B1P1PPP/RN1QKB1R
+  Pred: r2qkb1r/pppn1ppp/4pn2/3p1b2/1PP5/P3PN2/1B3PPP/RN1QKB1R
+  Classifier errors [1]: d2:P->empty(91%)
+Frame 12 (id=   12, move_id= 12): 63/64 =  98.4%  move=c6 [sure]
+  GT:   r2qkb1r/pp1n1ppp/2p1pn2/3p1b2/1PP5/P3PN2/1B1P1PPP/RN1QKB1R
+  Pred: r2qkb1r/pp1n1ppp/2p1pn2/3p1b2/1PP5/P3PN2/1B3PPP/RN1QKB1R
+  Classifier errors [1]: d2:P->empty(97%)
+Frame 13 (id=   13, move_id= 13): 63/64 =  98.4%  move=Nc3 [sure]
+  GT:   r2qkb1r/pp1n1ppp/2p1pn2/3p1b2/1PP5/P1N1PN2/1B1P1PPP/R2QKB1R
+  Pred: r2qkb1r/pp1n1ppp/2p1pn2/3p1b2/1PP5/P1N1PN2/1B3PPP/R2QKB1R
+  Classifier errors [1]: d2:P->empty(98%)
+Frame 14 (id=   14, move_id= 14): 63/64 =  98.4%  move=Bd6 [sure]
+  GT:   r2qk2r/pp1n1ppp/2pbpn2/3p1b2/1PP5/P1N1PN2/1B1P1PPP/R2QKB1R
+  Pred: r2qk2r/pp1n1ppp/2pbpn2/3p1b2/1PP5/P1N1PN2/1B3PPP/R2QKB1R
+  Classifier errors [1]: d2:P->empty(99%)
+Frame 15 (id=   15, move_id= 15): 62/64 =  96.9%  move=Be2 [sure]
+  GT:   r2qk2r/pp1n1ppp/2pbpn2/3p1b2/1PP5/P1N1PN2/1B1PBPPP/R2QK2R
+  Pred: r2qk2r/pp1n1ppp/2p1pn2/3p1b2/1PP5/P1N1PN2/1B2BPPP/R2QK2R
+  Classifier errors [2]: d6:b->empty(92%), d2:P->empty(94%)
+Frame 16 (id=   16, move_id= 16): 61/64 =  95.3%  move=h6 [unsure] adjusted: d7:p->n(71%), d6:empty->b(100%), d2:empty->P(100%)
+  GT:   r2qk2r/pp1n1pp1/2pbpn1p/3p1b2/1PP5/P1N1PN2/1B1PBPPP/R2QK2R
+  Pred: r2qk2r/pp1p1pp1/2p1pn1p/3p1b2/1PP5/P1N1PN2/1B2BPPP/R2QK2R
+  Classifier errors [3]: d7:n->p(71%), d6:b->empty(100%), d2:P->empty(100%)
+Frame 17 (id=   17, move_id= 17): 63/64 =  98.4%  move=O-O [sure]
+  GT:   r2qk2r/pp1n1pp1/2pbpn1p/3p1b2/1PP5/P1N1PN2/1B1PBPPP/R2Q1RK1
+  Pred: r2qk2r/pp1n1pp1/2pbpn1p/3p1b2/1PP5/P1N1PN2/1B2BPPP/R2Q1RK1
+  Classifier errors [1]: d2:P->empty(100%)
+Frame 18 (id=   18, move_id= 18): 63/64 =  98.4%  move=O-O [sure]
+  GT:   r2q1rk1/pp1n1pp1/2pbpn1p/3p1b2/1PP5/P1N1PN2/1B1PBPPP/R2Q1RK1
+  Pred: r2q1rk1/pp1n1pp1/2pbpn1p/3p1b2/1PP5/P1N1PN2/1B2BPPP/R2Q1RK1
+  Classifier errors [1]: d2:P->empty(100%)
+Frame 19 (id=   19, move_id= 19): 64/64 = 100.0%  move=d4 [sure]
+  GT:   r2q1rk1/pp1n1pp1/2pbpn1p/3p1b2/1PPP4/P1N1PN2/1B2BPPP/R2Q1RK1
+  Pred: r2q1rk1/pp1n1pp1/2pbpn1p/3p1b2/1PPP4/P1N1PN2/1B2BPPP/R2Q1RK1
+Frame 20 (id=   20, move_id= 20): 64/64 = 100.0%  move=a6 [sure]
+  GT:   r2q1rk1/1p1n1pp1/p1pbpn1p/3p1b2/1PPP4/P1N1PN2/1B2BPPP/R2Q1RK1
+  Pred: r2q1rk1/1p1n1pp1/p1pbpn1p/3p1b2/1PPP4/P1N1PN2/1B2BPPP/R2Q1RK1
+Frame 21 (id=   21, move_id= 21): 63/64 =  98.4%  move=Bd3 [sure]
+  GT:   r2q1rk1/1p1n1pp1/p1pbpn1p/3p1b2/1PPP4/P1NBPN2/1B3PPP/R2Q1RK1
+  Pred: r2q1rk1/1p1n1pp1/p1pppn1p/3p1b2/1PPP4/P1NBPN2/1B3PPP/R2Q1RK1
+  Classifier errors [1]: d6:b->p(61%)
+Frame 22 (id=   22, move_id= 22): 62/64 =  96.9%  move=Qe7 [sure]
+  GT:   r4rk1/1p1nqpp1/p1pbpn1p/3p1b2/1PPP4/P1NBPN2/1B3PPP/R2Q1RK1
+  Pred: r4rk1/1p1nbpp1/p1pppn1p/3p1b2/1PPP4/P1NBPN2/1B3PPP/R2Q1RK1
+  Classifier errors [2]: e7:q->b(100%), d6:b->p(54%)
+Frame 23 (id=   23, move_id= 23): 61/64 =  95.3%  move=cxd5 [unsure] adjusted: d7:b->n(100%), e7:b->q(100%), d6:p->b(56%)
+  GT:   r4rk1/1p1nqpp1/p1pbpn1p/3P1b2/1P1P4/P1NBPN2/1B3PPP/R2Q1RK1
+  Pred: r4rk1/1p1bbpp1/p1pppn1p/3P1b2/1P1P4/P1NBPN2/1B3PPP/R2Q1RK1
+  Classifier errors [3]: d7:n->b(100%), e7:q->b(100%), d6:b->p(56%)
+Frame 24 (id=   24, move_id= 24): 57/64 =  89.1%  move=Be4 [unsure] adjusted: d7:empty->n(65%), e7:b->q(100%), d6:empty->b(56%), e4:P->b(80%), e3:B->P(100%), g3:N->empty(92%)
+  GT:   r4rk1/1p1nqpp1/p1pbpn1p/3P4/1P1P4/P1NbPN2/1B3PPP/R2Q1RK1
+  Pred: r4rk1/1p2bpp1/p1p1pn1p/3P4/1P1PP3/P1NBBNN1/1B3PPP/R2Q1RK1
+  Classifier errors [7]: d7:n->empty(65%), e7:q->b(100%), d6:b->empty(56%), e4:empty->P(80%), d3:b->B(100%), e3:P->B(100%) (+1 more)
+Frame 25 (id=   25, move_id= 25): 61/64 =  95.3%  move=Re1 [unsure] adjusted: e7:b->q(100%), e4:empty->b(100%), d1:empty->Q(100%), e1:empty->R(100%)
+  GT:   r4rk1/1p1nqpp1/p1pbpn1p/3P4/1P1P4/P1NQPN2/1B3PPP/R4RK1
+  Pred: r4rk1/1p1nbpp1/p1pbpn1p/3P4/1P1P4/P1NBPN2/1B3PPP/R5K1
+  Classifier errors [3]: e7:q->b(100%), d3:Q->B(100%), f1:R->empty(87%)
+Frame 26 (id=   26, move_id= 26): 62/64 =  96.9%  move=exd5 [unsure] adjusted: e7:b->q(100%), e4:empty->b(100%), d1:empty->Q(100%), e1:empty->R(100%), f1:R->empty(100%)
+  GT:   r4rk1/1p1nqpp1/p1pb1n1p/3p4/1P1P4/P1NQPN2/1B3PPP/R4RK1
+  Pred: r4rk1/1p1nbpp1/p1pb1n1p/3p4/1P1P4/P1NBPN2/1B3PPP/R4RK1
+  Classifier errors [2]: e7:q->b(100%), d3:Q->B(100%)
+Frame 27 (id=   27, move_id= 27): 62/64 =  96.9%  move=Nd2 [unsure] adjusted: e7:b->q(100%), e4:empty->b(100%), d1:empty->Q(100%), e1:empty->R(100%), f1:R->empty(100%)
+  GT:   r4rk1/1p1nqpp1/p1pb1n1p/3p4/1P1P4/P1NQP3/1B1N1PPP/R4RK1
+  Pred: r4rk1/1p1nbpp1/p1pb1n1p/3p4/1P1P4/P1NBP3/1B1N1PPP/R4RK1
+  Classifier errors [2]: e7:q->b(100%), d3:Q->B(100%)
+Frame 28 (id=   28, move_id= 28): 61/64 =  95.3%  move=Rfe8 [unsure] adjusted: e7:b->q(100%), d6:N->b(50%), e4:empty->b(100%), d1:empty->Q(100%), e1:empty->R(100%), f1:R->empty(100%)
+  GT:   r3r1k1/1p1nqpp1/p1pb1n1p/3p4/1P1P4/P1NQP3/1B1N1PPP/R4RK1
+  Pred: r3r1k1/1p1nbpp1/p1pN1n1p/3p4/1P1P4/P1NBP3/1B1N1PPP/R4RK1
+  Classifier errors [3]: e7:q->b(100%), d6:b->N(50%), d3:Q->B(100%)
+Frame 29 (id=   29, move_id= 29): 61/64 =  95.3%  move=Qh5 [unsure] adjusted: e7:b->q(100%), d6:p->b(78%), h5:empty->Q(100%), e4:empty->b(100%)
+  GT:   r3r1k1/1p1nqpp1/p1pb1n1p/3p4/1P1P4/P1NQP3/1B1N1PPP/R3R1K1
+  Pred: r3r1k1/1p1nbpp1/p1pp1n1p/3p4/1P1P4/P1NBP3/1B1N1PPP/R3R1K1
+  Classifier errors [3]: e7:q->b(100%), d6:b->p(78%), d3:Q->B(97%)
+Frame 30 (id=   30, move_id= 30): 62/64 =  96.9%  move=Bxd3 [unsure] adjusted: e7:b->q(100%), d6:empty->b(100%), h5:empty->Q(100%), d3:Q->b(100%)
+  GT:   r3r1k1/1p1nqpp1/p1p2n1p/3p4/1P1P4/P1NQP3/1B1N1PPb/R3R1K1
+  Pred: r3r1k1/1p1nbpp1/p1p2n1p/3p4/1P1P4/P1NQP3/1B1N1PPP/R3R1K1
+  Classifier errors [2]: e7:q->b(100%), h2:b->P(100%)
+Frame 31 (id=   31, move_id= 31): 61/64 =  95.3%  move=f4 [unsure] adjusted: e7:empty->b(100%), g5:b->empty(100%), d3:Q->B(72%), b2:P->B(94%), d2:B->N(96%)
+  GT:   r3r1k1/1p1nqpp1/p1p2n1p/3p4/1P1P4/P1NQP3/1B1N1PPK/R3R3
+  Pred: r3r1k1/1p1bbpp1/p1p2n1p/3p4/1P1P4/P1NBP3/1B1N1PPK/R3R3
+  Classifier errors [3]: d7:n->b(64%), e7:q->b(100%), d3:Q->B(83%)
+Frame 32 (id=   32, move_id= 32): 62/64 =  96.9%  move=Bg5 [sure]
+  GT:   r3r1k1/1p1nqpp1/p1p4p/3p4/1P1P2n1/P1NQP3/1B1N1PPK/R3R3
+  Pred: r3r1k1/1p1nbpp1/p1p4p/3p4/1P1P4/P1NQP3/1B1N1PPK/R3R3
+  Classifier errors [2]: e7:q->b(98%), g4:n->empty(100%)
+Frame 33 (id=   33, move_id= 33): 60/64 =  93.8%  move=fxg5 [sure]
+  GT:   r3r1k1/1p1nqpp1/p1p4p/3p4/1P1P2n1/P1NQP1K1/1B1N1PP1/R3R3
+  Pred: r3r1k1/1p1nbpp1/p1p4p/3p4/1P1P4/P1NBP1N1/1B1N1PP1/R3R3
+  Classifier errors [4]: e7:q->b(100%), g4:n->empty(100%), d3:Q->B(100%), g3:K->N(100%)
+Frame 34 (id=   34, move_id= 34): 59/64 =  92.2%  move=Kh8 [unsure] adjusted: g8:k->empty(100%), h8:empty->k(100%), a4:P->empty(100%), c3:empty->N(100%), d3:b->B(97%), g3:K->N(96%)
+  GT:   r3r1k1/1p1n1pp1/p1p4p/3p2q1/1P1P2n1/P1NQP1K1/1B1N1PP1/R3R3
+  Pred: r3r1k1/1p1n1pp1/p1p4p/3p4/1P1P4/P1NBP1N1/1B1B1PP1/R3R3
+  Classifier errors [5]: g5:q->empty(99%), g4:n->empty(100%), d3:Q->B(100%), g3:K->N(99%), d2:N->B(95%)
+Frame 35 (id=   35, move_id= 35): 59/64 =  92.2%  move=Nb5 [unsure] adjusted: g8:k->empty(100%), h8:empty->k(100%), b7:empty->p(100%), b5:p->N(100%), a4:P->empty(100%), g3:K->N(99%)
+  GT:   r3r1k1/1p1n1pp1/p1p4p/3p2q1/1P1P1Pn1/P1NQP1K1/1B1N2P1/R3R3
+  Pred: r3r1k1/1p1n1pp1/p1p4p/3p2b1/1P1P1P2/P1NBP1N1/1B1B2P1/R3R3
+  Classifier errors [5]: g5:q->b(97%), g4:n->empty(100%), d3:Q->B(90%), g3:K->N(95%), d2:N->B(100%)
+Frame 36 (id=   36, move_id= 36): 59/64 =  92.2%  move=failed [failed]
+  GT:   r3r1k1/1p1n1pp1/p1p4p/3pn1q1/1P1P1P2/P1NQP1K1/1B1N2P1/R3R3
+  Pred: r3r1k1/1p1n1pp1/p1p4p/3p2b1/1P1P1P2/P1NQP1N1/1P1B2P1/R3R3
+  Classifier errors [5]: e5:n->empty(95%), g5:q->b(100%), g3:K->N(76%), b2:B->P(94%), d2:N->B(96%)
+Frame 37 (id=   37, move_id= 37): 61/64 =  95.3%  move=failed [failed]
+  GT:   r3r1k1/1p1n1pp1/p1p4p/3pn1P1/1P1P4/P1NQP1K1/1B1N2P1/R3R3
+  Pred: r3r1k1/1p1n1pp1/p1p4p/3p2P1/1P1P4/P1NBP1N1/1B1N2P1/R3R3
+  Classifier errors [3]: e5:n->empty(100%), d3:Q->B(100%), g3:K->N(99%)
+Frame 38 (id=   38, move_id= 38): 63/64 =  98.4%  move=failed [failed]
+  GT:   r3r1k1/1p1n1pp1/p1p4p/3p2P1/1P1P4/P1NnP1K1/1B1N2P1/R3R3
+  Pred: r3r1k1/1p1n1pp1/p1p4p/3p2P1/1P1P4/P1NbP1K1/1B1N2P1/R3R3
+  Classifier errors [1]: d3:n->b(89%)
+Frame 39 (id=   39, move_id= 39): 62/64 =  96.9%  move=failed [failed]
+  GT:   r3r1k1/1p1n1pp1/p1p4p/3p2P1/NP1P4/P2nP1K1/1B1N2P1/R3R3
+  Pred: r3r1k1/1p1n1pp1/p1p4p/3p2P1/PP1P4/P2bP1K1/1B1N2P1/R3R3
+  Classifier errors [2]: a4:N->P(100%), d3:n->b(97%)
+Frame 40 (id=   40, move_id= 40): 62/64 =  96.9%  move=failed [failed]
+  GT:   r3r1k1/3n1pp1/p1p4p/1p1p2P1/NP1P4/P2nP1K1/1B1N2P1/R3R3
+  Pred: r3r1k1/3n1pp1/p1p4p/1p1p2P1/PP1P4/P2BP1K1/1B1N2P1/R3R3
+  Classifier errors [2]: a4:N->P(100%), d3:n->B(55%)
+
+Move Detection Failures (board state held at last good position):
+--------------------------------------------------------------
+  Frame 31: no_legal_move_within_adjustment_budget
+  Frame 32: no_legal_move_within_adjustment_budget
+  Frame 33: no_legal_move_within_adjustment_budget
+  Frame 34: no_legal_move_within_adjustment_budget
+  Frame 35: no_legal_move_within_adjustment_budget
+
+Consensus Re-sync Events:
+--------------------------------------------------------------
+  Frame  35: force-synced board  (window=5, diff=8 sq)
+    Consensus pos: r3r1k1/1p1nbpp1/p1p4p/3p4/1P1P4/P1NBP1N1/1B1N1PP1/R3R3

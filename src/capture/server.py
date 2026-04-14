@@ -73,8 +73,8 @@ _A1_ANGLE_LABEL = {(0, 7): 0, (7, 7): 90, (7, 0): 180, (0, 0): 270}
 class CaptureState(Enum):
     SETUP           = "SETUP"           # Step 0: enter game metadata
     CALIBRATING     = "CALIBRATING"     # Step 1: click 4 board corners
-    ORIENTATION     = "ORIENTATION"     # Step 2: click a1 square
-    GRID_CORRECTION = "GRID_CORRECTION" # Step 3: adjust grid lines
+    GRID_CORRECTION = "GRID_CORRECTION" # Step 2: adjust grid lines
+    ORIENTATION     = "ORIENTATION"     # Step 3: click a1 square
     STATIC          = "STATIC"
     MOVING          = "MOVING"
 
@@ -173,6 +173,24 @@ def encode_image(img: np.ndarray) -> str:
 def apply_rotation(image: np.ndarray, code) -> np.ndarray:
     return image if code is None else cv2.rotate(image, code)
 
+def _rotate_grid(grid: dict, code) -> dict:
+    """Rotate grid line coordinates to match a cv2.rotate() code applied to a 400×400 image."""
+    if code is None:
+        return grid
+    xs = grid['x_lines']
+    ys = grid['y_lines']
+    SIZE = 400
+    if code == cv2.ROTATE_90_CLOCKWISE:       # (x,y) -> (SIZE-y, x)
+        return {'x_lines': [SIZE - y for y in reversed(ys)],
+                'y_lines': list(xs)}
+    if code == cv2.ROTATE_180:                # (x,y) -> (SIZE-x, SIZE-y)
+        return {'x_lines': [SIZE - x for x in reversed(xs)],
+                'y_lines': [SIZE - y for y in reversed(ys)]}
+    if code == cv2.ROTATE_90_COUNTERCLOCKWISE: # (x,y) -> (y, SIZE-x)
+        return {'x_lines': list(ys),
+                'y_lines': [SIZE - x for x in reversed(xs)]}
+    return grid
+
 def snap_to_corner(col: int, row: int) -> tuple:
     corners = [(0, 0), (7, 0), (0, 7), (7, 7)]
     return min(corners, key=lambda c: abs(c[0] - col) + abs(c[1] - row))
@@ -189,7 +207,7 @@ def detect_board_grid(warped: np.ndarray) -> dict:
 def write_game_info():
     """Write (or update) game_info.json — to S3 if configured, else locally."""
     data = dict(session.game_info)
-    data["rotation"]    = session.rotation_angle
+    data["rotation_angle"] = session.rotation_angle
     data["total_moves"] = max(0, session.move_number - 1)
     if session.board_grid:
         data["board_grid"] = session.board_grid
@@ -288,24 +306,13 @@ def calibrate(data: CalibrationData):
 
         warped = cv2.warpPerspective(frame, session.perspective_matrix, (BOARD_SIZE, BOARD_SIZE))
         session.warped_setup_frame = warped.copy()
-        session.state              = CaptureState.ORIENTATION
+        session.state              = CaptureState.GRID_CORRECTION
 
         grid = detect_board_grid(warped)
         session.board_grid = grid
         logger.info(f"Grid — x: {grid['x_lines']}, y: {grid['y_lines']}")
 
-        # Auto-detect orientation suggestion
-        _ANGLE_TO_CORNER = {0: {"col": 0, "row": 7}, 90: {"col": 7, "row": 7},
-                            180: {"col": 7, "row": 0}, 270: {"col": 0, "row": 0}}
-        try:
-            suggested_angle = determine_orientation(warped)
-        except Exception:
-            suggested_angle = 0
-        suggested_a1 = {**_ANGLE_TO_CORNER[suggested_angle], "angle": suggested_angle}
-        logger.info(f"Auto-detected orientation: {suggested_angle}°")
-
-        return {"status": "success", "warped_b64": encode_image(warped),
-                "grid": grid, "suggested_a1": suggested_a1}
+        return {"status": "success", "warped_b64": encode_image(warped), "grid": grid}
     except Exception as e:
         logger.error(f"Calibration error: {e}")
         return JSONResponse(status_code=500, content={"message": str(e)})
@@ -313,27 +320,30 @@ def calibrate(data: CalibrationData):
 
 @app.post("/api/set_orientation")
 def set_orientation(data: OrientationData):
-    """Step 2: user identifies a1. Rotate board so a1 is always bottom-left."""
+    """Step 3: user identifies a1. Rotate board so a1 is always bottom-left, then start."""
     session.last_activity_time = time.time()
-    if session.state not in (CaptureState.ORIENTATION, CaptureState.GRID_CORRECTION):
+    if session.state != CaptureState.ORIENTATION:
         return JSONResponse(status_code=400, content={"message": "Not in ORIENTATION state"})
     try:
         corner               = snap_to_corner(data.col, data.row)
         session.rotation_code  = _A1_ROTATION[corner]
         session.rotation_angle = _A1_ANGLE_LABEL[corner]
 
+        # Rotate the already grid-corrected warped frame
         rotated = apply_rotation(session.warped_setup_frame, session.rotation_code)
-        session.warped_setup_frame = rotated  # store rotated version for grid correction
-        grid = detect_board_grid(rotated)
-        session.board_grid = grid
+        session.warped_setup_frame = rotated
 
-        session.state = CaptureState.GRID_CORRECTION
-        logger.info(f"Orientation set: {session.rotation_angle}°. Grid correction next.")
+        # Re-apply rotation to the stored corrected grid lines
+        if session.board_grid:
+            session.board_grid = _rotate_grid(session.board_grid, session.rotation_code)
+
+        # Save the initial board image (move 000) and go STATIC
+        save_and_upload(session.warped_setup_frame)
+        session.state = CaptureState.STATIC
+        logger.info(f"Orientation set: {session.rotation_angle}°. Session active.")
         return {
             "status": "success",
             "rotation_angle": session.rotation_angle,
-            "warped_b64": encode_image(rotated),
-            "grid": grid,
         }
     except Exception as e:
         logger.error(f"Orientation error: {e}")
@@ -342,7 +352,7 @@ def set_orientation(data: OrientationData):
 
 @app.post("/api/confirm_grid")
 def confirm_grid(data: GridCorrectionData):
-    """Step 3: user corrects grid lines, then game starts."""
+    """Step 2: user corrects grid lines, then moves to orientation (a1 selection)."""
     session.last_activity_time = time.time()
     if session.state != CaptureState.GRID_CORRECTION:
         return JSONResponse(status_code=400, content={"message": "Not in GRID_CORRECTION state"})
@@ -354,11 +364,25 @@ def confirm_grid(data: GridCorrectionData):
             if data.x_lines[i] <= data.x_lines[i - 1] or data.y_lines[i] <= data.y_lines[i - 1]:
                 return JSONResponse(status_code=400, content={"message": "Lines must be monotonically increasing"})
         session.board_grid = {'x_lines': list(data.x_lines), 'y_lines': list(data.y_lines)}
-        # Save the initial board image (move 000)
-        save_and_upload(session.warped_setup_frame)
-        session.state = CaptureState.STATIC
-        logger.info(f"Grid confirmed. Session active. Grid: x={data.x_lines}, y={data.y_lines}")
-        return {"status": "success"}
+        session.state = CaptureState.ORIENTATION
+        logger.info(f"Grid confirmed. Orientation step next. Grid: x={data.x_lines}, y={data.y_lines}")
+
+        # Auto-detect orientation suggestion on the corrected warped frame
+        _ANGLE_TO_CORNER = {0: {"col": 0, "row": 7}, 90: {"col": 7, "row": 7},
+                            180: {"col": 7, "row": 0}, 270: {"col": 0, "row": 0}}
+        try:
+            suggested_angle = determine_orientation(session.warped_setup_frame)
+        except Exception:
+            suggested_angle = 0
+        suggested_a1 = {**_ANGLE_TO_CORNER[suggested_angle], "angle": suggested_angle}
+        logger.info(f"Auto-detected orientation: {suggested_angle}°")
+
+        return {
+            "status": "success",
+            "warped_b64": encode_image(session.warped_setup_frame),
+            "grid": session.board_grid,
+            "suggested_a1": suggested_a1,
+        }
     except Exception as e:
         logger.error(f"Grid confirmation error: {e}")
         return JSONResponse(status_code=500, content={"message": str(e)})
@@ -437,7 +461,7 @@ def _s3_put(s3_key: str, data: bytes, content_type: str = "image/jpeg") -> bool:
 
 
 def save_and_upload(frame: np.ndarray, raw_frame: np.ndarray = None):
-    filename = f"{session.game_id}_{session.move_number:03d}.jpg"
+    filename = f"{session.move_number:03d}.jpg"
 
     # Always save warped+rotated image
     _, buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 92])

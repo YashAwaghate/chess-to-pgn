@@ -1,246 +1,230 @@
 """
-Prepare the ChessReD dataset for per-square classification training.
+Prepare ChessReD dataset for patch-based classification (CVCHESS approach).
 
-ChessReD (Chess Recognition Dataset):
-  - ~10,800 board images with FEN annotations
-  - Images are rectified chessboard photos
-  - Available from 4TU.ResearchData
+Approach (arXiv 2511.11522 — "CVCHESS: Computer Vision Chess"):
+  For each board image:
+    1. Warp to 400×400 using annotated corner homography
+    2. Map each annotated piece to its grid cell via bbox centroid → (row//50, col//50)
+    3. Crop 64 uniform 50×50 patches; label pieces from annotations, remainder as 'empty'
+    4. Save to {output_dir}/{split}/{class_name}/{img_id}_{row}_{col}.jpg
 
-This script:
-  1. Reads board images and their FEN annotations
-  2. Crops each image into 64 square patches (uniform 50px grid on 400×400)
-  3. Labels each patch from the FEN
-  4. Saves to data/chessred_patches/{train,val}/{class_name}/
-  5. Prints class distribution stats
+Only images that have corner annotations are used (1442 train / 330 val in ChessReD).
+Splits are taken directly from annotations.json to match the official dataset split.
+
+Dataset: ChessReD — Chess Recognition Dataset (Masouris, 2023)
+  https://data.4tu.nl/articles/dataset/ChessReD_Chess_Recognition_Dataset/19600827
 
 Usage:
-  python -m src.models.prepare_chessred --chessred_dir /path/to/ChessReD --output_dir data/chessred_patches
+  python -m src.models.prepare_chessred --chessred_dir data --output_dir data/chessred_patches
 """
 
 import os
 import cv2
 import json
 import argparse
-import random
 import shutil
-from collections import Counter
+import numpy as np
+from collections import Counter, defaultdict
 from tqdm import tqdm
 
-# The 13 classes matching classifier.py
-CLASS_NAMES = [
-    'empty',
-    'P', 'N', 'B', 'R', 'Q', 'K',
-    'p', 'n', 'b', 'r', 'q', 'k',
-]
 
 BOARD_SIZE = 400
-SQUARE_SIZE = 50
+SQUARE_SIZE = 50   # 400 / 8
+
+# ChessReD category_id → folder name used in ImageFolder directories.
+# On Windows, directory names are case-insensitive, so 'B' and 'b' would collide.
+# Black pieces use a trailing underscore (e.g. 'b_') to stay distinct on all platforms.
+# inference.py maps these folder names back to standard FEN characters.
+CATEGORY_TO_CLASS = {
+    0: 'P',      # white-pawn
+    1: 'R',      # white-rook
+    2: 'N',      # white-knight
+    3: 'B',      # white-bishop
+    4: 'Q',      # white-queen
+    5: 'K',      # white-king
+    6: 'p_',     # black-pawn
+    7: 'r_',     # black-rook
+    8: 'n_',     # black-knight
+    9: 'b_',     # black-bishop
+    10: 'q_',    # black-queen
+    11: 'k_',    # black-king
+    12: 'empty',
+}
+
+ALL_CLASSES = list(CATEGORY_TO_CLASS.values())
 
 
-def fen_to_board(fen_position: str) -> list:
-    """Convert FEN position string to 8×8 list of piece chars.
+def warp_board(img, corners: dict) -> np.ndarray:
+    """Perspective-warp image to BOARD_SIZE×BOARD_SIZE using annotated corners.
 
-    Returns list of 8 rows (rank 8 first), each row is a list of 8 chars.
-    Empty squares are 'empty'.
+    corners dict has keys: top_left, top_right, bottom_right, bottom_left
+    each value is [x, y] in the original image.
     """
-    rows = fen_position.split('/')
-    board = []
-    for row in rows:
-        rank = []
-        for ch in row:
-            if ch.isdigit():
-                rank.extend(['empty'] * int(ch))
-            else:
-                rank.append(ch)
-        board.append(rank)
-    return board
+    src = np.float32([
+        corners['top_left'],
+        corners['top_right'],
+        corners['bottom_right'],
+        corners['bottom_left'],
+    ])
+    dst = np.float32([
+        [0, 0],
+        [BOARD_SIZE - 1, 0],
+        [BOARD_SIZE - 1, BOARD_SIZE - 1],
+        [0, BOARD_SIZE - 1],
+    ])
+    M = cv2.getPerspectiveTransform(src, dst)
+    return cv2.warpPerspective(img, M, (BOARD_SIZE, BOARD_SIZE)), M
 
 
-def crop_uniform_grid(img, target_size=400):
-    """Resize image to target_size×target_size and crop 64 uniform patches."""
-    h, w = img.shape[:2]
-    if h != target_size or w != target_size:
-        img = cv2.resize(img, (target_size, target_size))
+def bbox_centroid_to_grid(bbox, M) -> tuple:
+    """Map a bbox [x, y, w, h] in original coords to a warped grid cell (row, col).
 
-    patches = []
-    for row in range(8):
-        row_patches = []
-        for col in range(8):
-            y1 = row * SQUARE_SIZE
-            y2 = (row + 1) * SQUARE_SIZE
-            x1 = col * SQUARE_SIZE
-            x2 = (col + 1) * SQUARE_SIZE
-            patch = img[y1:y2, x1:x2]
-            row_patches.append(patch)
-        patches.append(row_patches)
-    return patches
-
-
-def find_chessred_structure(chessred_dir):
-    """Detect ChessReD directory structure and return list of (image_path, fen) pairs.
-
-    ChessReD has multiple possible structures. This function handles:
-    1. CSV/JSON annotation files with image paths and FENs
-    2. Directory-based structure with FEN in filename or metadata
+    Returns (row, col) where row 0 = top of board, col 0 = left of board.
+    Returns None if centroid falls outside the board after warp.
     """
-    pairs = []
+    x, y, w, h = bbox
+    cx, cy = x + w / 2, y + h / 2
 
-    # Try: annotations.json or similar
-    for ann_name in ['annotations.json', 'metadata.json', 'labels.json']:
-        ann_path = os.path.join(chessred_dir, ann_name)
-        if os.path.exists(ann_path):
-            with open(ann_path) as f:
-                data = json.load(f)
-            if isinstance(data, list):
-                for entry in data:
-                    img_path = os.path.join(chessred_dir, entry.get('image', entry.get('filename', '')))
-                    fen = entry.get('fen', entry.get('FEN', ''))
-                    if os.path.exists(img_path) and fen:
-                        # Extract just the position part of FEN
-                        fen_position = fen.split(' ')[0]
-                        pairs.append((img_path, fen_position))
-            elif isinstance(data, dict):
-                for img_name, fen in data.items():
-                    img_path = os.path.join(chessred_dir, img_name)
-                    if os.path.exists(img_path):
-                        fen_position = fen.split(' ')[0] if isinstance(fen, str) else fen.get('fen', '').split(' ')[0]
-                        if fen_position:
-                            pairs.append((img_path, fen_position))
-            if pairs:
-                return pairs
+    # Apply homography to centroid
+    pt = np.array([[[cx, cy]]], dtype=np.float32)
+    warped_pt = cv2.perspectiveTransform(pt, M)[0][0]
+    wx, wy = warped_pt
 
-    # Try: CSV annotation file
-    for csv_name in ['annotations.csv', 'metadata.csv', 'labels.csv']:
-        csv_path = os.path.join(chessred_dir, csv_name)
-        if os.path.exists(csv_path):
-            with open(csv_path) as f:
-                header = f.readline().strip().split(',')
-                for line in f:
-                    parts = line.strip().split(',')
-                    if len(parts) >= 2:
-                        row_dict = dict(zip(header, parts))
-                        img_name = row_dict.get('image', row_dict.get('filename', parts[0]))
-                        fen = row_dict.get('fen', row_dict.get('FEN', parts[-1]))
-                        img_path = os.path.join(chessred_dir, img_name)
-                        if not os.path.exists(img_path):
-                            # Try subdirectories
-                            for sub in os.listdir(chessred_dir):
-                                candidate = os.path.join(chessred_dir, sub, img_name)
-                                if os.path.exists(candidate):
-                                    img_path = candidate
-                                    break
-                        if os.path.exists(img_path) and fen:
-                            fen_position = fen.split(' ')[0]
-                            pairs.append((img_path, fen_position))
-            if pairs:
-                return pairs
+    if not (0 <= wx < BOARD_SIZE and 0 <= wy < BOARD_SIZE):
+        return None
 
-    # Try: directory walk — look for images alongside .txt or .fen files
-    for root, dirs, files in os.walk(chessred_dir):
-        image_files = [f for f in files if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
-        for img_file in image_files:
-            base = os.path.splitext(img_file)[0]
-            # Look for FEN in companion text file
-            for ext in ['.txt', '.fen']:
-                fen_file = os.path.join(root, base + ext)
-                if os.path.exists(fen_file):
-                    with open(fen_file) as f:
-                        fen = f.read().strip().split(' ')[0]
-                    if '/' in fen:  # Basic FEN validation
-                        pairs.append((os.path.join(root, img_file), fen))
-                    break
-
-    return pairs
+    row = int(wy // SQUARE_SIZE)
+    col = int(wx // SQUARE_SIZE)
+    return (min(row, 7), min(col, 7))
 
 
-def prepare_dataset(chessred_dir, output_dir, val_split=0.2, seed=42):
-    """Main preparation function."""
-    print(f"Scanning ChessReD directory: {chessred_dir}")
-    pairs = find_chessred_structure(chessred_dir)
+def crop_patch(warped_img, row: int, col: int) -> np.ndarray:
+    """Crop a SQUARE_SIZE×SQUARE_SIZE patch at grid position (row, col)."""
+    y1 = row * SQUARE_SIZE
+    y2 = (row + 1) * SQUARE_SIZE
+    x1 = col * SQUARE_SIZE
+    x2 = (col + 1) * SQUARE_SIZE
+    return warped_img[y1:y2, x1:x2]
 
-    if not pairs:
-        print("ERROR: Could not find any image+FEN pairs in the ChessReD directory.")
-        print("Expected one of:")
-        print("  - annotations.json / metadata.json with image paths and FEN strings")
-        print("  - annotations.csv with image,fen columns")
-        print("  - Image files with companion .txt/.fen files containing FEN strings")
+
+def prepare_dataset(chessred_dir: str, output_dir: str):
+    ann_path = os.path.join(chessred_dir, 'annotations.json')
+    if not os.path.exists(ann_path):
+        print(f"ERROR: annotations.json not found at {ann_path}")
         return
 
-    print(f"Found {len(pairs)} board images with FEN annotations")
+    print(f"Loading annotations from {ann_path} ...")
+    with open(ann_path) as f:
+        data = json.load(f)
 
-    # Shuffle and split
-    random.seed(seed)
-    random.shuffle(pairs)
-    split_idx = int(len(pairs) * (1 - val_split))
-    train_pairs = pairs[:split_idx]
-    val_pairs = pairs[split_idx:]
+    # Build lookup tables
+    images_by_id = {img['id']: img for img in data['images']}
+    corners_by_id = {c['image_id']: c['corners'] for c in data['annotations']['corners']}
 
-    print(f"Train: {len(train_pairs)}, Val: {len(val_pairs)}")
+    # Group piece annotations by image_id
+    pieces_by_image = defaultdict(list)
+    for p in data['annotations']['pieces']:
+        pieces_by_image[p['image_id']].append(p)
 
-    # Create output directories
+    # Official train / val splits (use 'val' for validation, skip 'test')
+    splits = data['splits']
+    split_ids = {
+        'train': set(splits['train']['image_ids']),
+        'val':   set(splits['val']['image_ids']),
+    }
+
+    # Only process images that have corner annotations
+    cornered_ids = set(corners_by_id.keys())
+    split_cornered = {
+        name: sorted(ids & cornered_ids)
+        for name, ids in split_ids.items()
+    }
+    for name, ids in split_cornered.items():
+        print(f"  {name}: {len(ids)} images with corners "
+              f"(of {len(split_ids[name])} total in split)")
+
+    # Clean and recreate output directories
     if os.path.exists(output_dir):
         shutil.rmtree(output_dir)
-
     for split in ['train', 'val']:
-        for cls in CLASS_NAMES:
+        for cls in ALL_CLASSES:
             os.makedirs(os.path.join(output_dir, split, cls), exist_ok=True)
 
     class_counts = Counter()
+    skipped = 0
 
-    for split_name, split_pairs in [('train', train_pairs), ('val', val_pairs)]:
-        print(f"\nProcessing {split_name} split...")
-        for idx, (img_path, fen_position) in enumerate(tqdm(split_pairs)):
+    for split_name, img_ids in split_cornered.items():
+        print(f"\nProcessing {split_name} split ({len(img_ids)} images)...")
+
+        for img_id in tqdm(img_ids, desc=f'  {split_name}'):
+            img_info = images_by_id[img_id]
+
+            # Resolve image path: annotations use "images/0/G000_IMG000.jpg"
+            # actual location:          "ChessRed_images/0/G000_IMG000.jpg"
+            rel_path = img_info['path'].replace('images/', 'ChessRed_images/', 1)
+            img_path = os.path.join(chessred_dir, rel_path)
+
+            if not os.path.exists(img_path):
+                skipped += 1
+                continue
+
             img = cv2.imread(img_path)
             if img is None:
-                print(f"  Warning: could not read {img_path}, skipping")
+                skipped += 1
                 continue
 
-            board = fen_to_board(fen_position)
-            if len(board) != 8 or any(len(r) != 8 for r in board):
-                print(f"  Warning: invalid FEN '{fen_position}' for {img_path}, skipping")
+            corners = corners_by_id[img_id]
+            try:
+                warped, M = warp_board(img, corners)
+            except Exception:
+                skipped += 1
                 continue
 
-            patches = crop_uniform_grid(img)
+            # Build grid label map: (row, col) → class_name
+            grid_labels = {}  # default: empty
 
+            for piece in pieces_by_image[img_id]:
+                cell = bbox_centroid_to_grid(piece['bbox'], M)
+                if cell is None:
+                    continue
+                row, col = cell
+                class_name = CATEGORY_TO_CLASS.get(piece['category_id'], 'empty')
+                # If two pieces map to same cell, prefer non-empty
+                if (row, col) not in grid_labels or class_name != 'empty':
+                    grid_labels[(row, col)] = class_name
+
+            # Save all 64 patches
             for row in range(8):
                 for col in range(8):
-                    piece = board[row][col]
-                    if piece not in CLASS_NAMES:
-                        print(f"  Warning: unknown piece '{piece}' in FEN, skipping square")
-                        continue
-
-                    patch = patches[row][col]
-                    # Resize to 50×50 if not already
-                    if patch.shape[0] != 50 or patch.shape[1] != 50:
-                        patch = cv2.resize(patch, (50, 50))
-
-                    files = "abcdefgh"
-                    ranks = "87654321"
-                    square_name = f"{files[col]}{ranks[row]}"
+                    class_name = grid_labels.get((row, col), 'empty')
+                    patch = crop_patch(warped, row, col)
 
                     out_path = os.path.join(
-                        output_dir, split_name, piece,
-                        f"{idx:05d}_{square_name}.jpg"
+                        output_dir, split_name, class_name,
+                        f'{img_id:05d}_{row}{col}.jpg'
                     )
                     cv2.imwrite(out_path, patch)
-                    class_counts[piece] += 1
+                    class_counts[class_name] += 1
 
-    # Print stats
+    # Stats
+    print("\n" + "-" * 40)
+    print(f"Skipped images: {skipped}")
     print("\n--- Class Distribution ---")
     total = sum(class_counts.values())
-    for cls in CLASS_NAMES:
+    for cls in ALL_CLASSES:
         count = class_counts.get(cls, 0)
-        pct = (count / total * 100) if total > 0 else 0
-        print(f"  {cls:6s}: {count:7d}  ({pct:5.1f}%)")
-    print(f"  {'TOTAL':6s}: {total:7d}")
+        pct = count / total * 100 if total else 0
+        print(f"  {cls:6s}: {count:7,d}  ({pct:5.1f}%)")
+    print(f"  {'TOTAL':6s}: {total:7,d}")
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Prepare ChessReD dataset for training')
-    parser.add_argument('--chessred_dir', required=True, help='Path to ChessReD dataset root')
-    parser.add_argument('--output_dir', default='data/chessred_patches', help='Output directory')
-    parser.add_argument('--val_split', type=float, default=0.2, help='Validation split ratio')
-    parser.add_argument('--seed', type=int, default=42, help='Random seed')
+    parser = argparse.ArgumentParser(
+        description='Prepare ChessReD patches for CVCHESS-style training')
+    parser.add_argument('--chessred_dir', default='data',
+                        help='Directory containing annotations.json and ChessRed_images/')
+    parser.add_argument('--output_dir', default='data/chessred_patches',
+                        help='Output directory for patch images')
     args = parser.parse_args()
 
-    prepare_dataset(args.chessred_dir, args.output_dir, args.val_split, args.seed)
+    prepare_dataset(args.chessred_dir, args.output_dir)

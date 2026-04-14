@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python scripts/demo_chessred.py --game_id 1 --max_moves 200)",
+      "Bash(python scripts/finetune_hard_positions.py --epochs 10 --batch_size 4)",
+      "Bash(python -c ':*)",
+      "Bash(python -u scripts/finetune_hard_positions.py --epochs 10 --batch_size 4 --split val)"
+    ]
+  }
+}
