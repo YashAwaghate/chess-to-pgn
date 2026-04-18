@@ -4,7 +4,10 @@
       "Bash(python scripts/demo_chessred.py --game_id 1 --max_moves 200)",
       "Bash(python scripts/finetune_hard_positions.py --epochs 10 --batch_size 4)",
       "Bash(python -c ':*)",
-      "Bash(python -u scripts/finetune_hard_positions.py --epochs 10 --batch_size 4 --split val)"
+      "Bash(python -u scripts/finetune_hard_positions.py --epochs 10 --batch_size 4 --split val)",
+      "Bash(venv/Scripts/pip install *)",
+      "Bash(venv/Scripts/python -m pytest tests/ -v --tb=short)",
+      "Bash(venv/Scripts/python -m pytest tests/ -v --tb=short --cov=src/pipeline --cov-report=term-missing)"
     ]
   }
 }

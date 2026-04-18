@@ -1,0 +1,20 @@
+Sample Prompts:
+
+Every prompt follows the same workflow:
+  
+  ASK FOR BOILERPLATE  →  REVIEW  →  EXTEND / REFINE  →  REPEAT
+
+Five principles applied throughout:
+
+  1. BOILERPLATE FIRST — get a working skeleton before writing any real logic
+  2. PRIVACY         — share only signatures / schemas, never real data or keys
+  3. RICH CONTEXT    — explain the pipeline, constraints, and expected I/O upfront
+  4. NARROW SCOPE    — one concern per prompt; build incrementally
+  5. REUSABLE SKILLS — teach the model a template once, invoke it for any module
+
+RESULT:
+  - AI acts as a fast typist for boilerplate I would write anyway
+  - Each response is small enough to review in < 2 minutes
+  - I stay in control of architecture and algorithm choices
+  - The same prompting pattern works for any module in the project
+
