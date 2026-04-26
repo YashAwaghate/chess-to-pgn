@@ -166,7 +166,7 @@ def decode_image(b64: str) -> np.ndarray:
         raise ValueError("Empty image data received")
     if "," in b64:
         b64 = b64.split(",")[1]
-    buf = np.frombuffer(base64.b64decode(b64), np.uint8)
+    buf = np.frombuffer(base64.b64decode(b64), np.uint8).copy()
     if buf.size == 0:
         raise ValueError("Decoded image buffer is empty")
     img = cv2.imdecode(buf, cv2.IMREAD_COLOR)
