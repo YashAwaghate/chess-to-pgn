@@ -41,3 +41,7 @@ coverage.xml
 poster_assets/
 stats_output_model/
 scripts/
+src/models/pretrained/
+training_log.txt
+demo_output/
+*.docx
