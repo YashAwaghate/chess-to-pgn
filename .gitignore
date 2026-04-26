@@ -21,6 +21,8 @@ coverage.xml
 *.log
 .gitattributes
 .DS_Store
+.ckpt
+.pth
 
 # Jupyter Notebooks
 .ipynb_checkpoints

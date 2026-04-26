@@ -60,18 +60,8 @@ const GRID_HIT_R  = 20;    // hit radius in display pixels
 
 // ─── Setup form ──────────────────────────────────────────────────────────────
 
-inpDate.value = new Date().toISOString().slice(0, 10);
-
-function autoFillEvent() {
-    const w = inpWhite.value.trim();
-    const b = inpBlack.value.trim();
-    if (!inpEvent.dataset.userEdited) {
-        inpEvent.value = (w || b) ? `${w || 'White'} vs ${b || 'Black'}` : '';
-    }
-}
-inpWhite.addEventListener('input', autoFillEvent);
-inpBlack.addEventListener('input', autoFillEvent);
-inpEvent.addEventListener('input', () => { inpEvent.dataset.userEdited = '1'; });
+// Set today's date on hidden field
+document.getElementById('inp-date').value = new Date().toISOString().slice(0, 10);
 
 btnStartSession.addEventListener('click', async () => {
     const white = inpWhite.value.trim();
@@ -100,7 +90,7 @@ btnStartSession.addEventListener('click', async () => {
                 round:        inpRound.value.trim() || '-',
                 time_control: inpTc.value,
                 notes:        inpNotes.value.trim(),
-                save_raw:     document.getElementById('inp-save-raw').checked,
+                save_raw:     false,
             }),
         });
         const data = await res.json();
@@ -153,6 +143,7 @@ async function initCamera() {
 }
 
 function getFrameBase64() {
+    if (!video.videoWidth || !video.videoHeight) return null;
     const tmp = document.createElement('canvas');
     tmp.width  = video.videoWidth;
     tmp.height = video.videoHeight;
@@ -377,6 +368,11 @@ btnResetBox.addEventListener('click', () => {
 
 btnCalibrate.addEventListener('click', async () => {
     if (!cropBox) return;
+    const frameB64 = getFrameBase64();
+    if (!frameB64) {
+        alert('Camera not ready yet. Please wait a moment and try again.');
+        return;
+    }
     btnCalibrate.disabled  = true;
     btnCalibrate.innerText = 'Calibrating…';
     try {
@@ -384,7 +380,7 @@ btnCalibrate.addEventListener('click', async () => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             // cropBox order [TL,TR,BR,BL] matches server dst [[0,0],[400,0],[400,400],[0,400]]
-            body: JSON.stringify({ points: cropBox, image_b64: getFrameBase64() }),
+            body: JSON.stringify({ points: cropBox, image_b64: frameB64 }),
         });
         const data = await res.json();
         if (data.status === 'success') {
@@ -734,9 +730,17 @@ document.querySelectorAll('.result-btn').forEach(btn => {
 });
 
 // ─── Session loop ─────────────────────────────────────────────────────────────
+const CAL_STATES = new Set(['CALIBRATING', 'GRID_CORRECTION', 'ORIENTATION']);
+
 function updateStatusBadge(state) {
     statusBadge.innerText = state;
     statusBadge.className = 'status-badge ' + state.toLowerCase();
+    const gameMain = document.getElementById('game-panel');
+    if (CAL_STATES.has(state)) {
+        gameMain.classList.add('cal-fullscreen');
+    } else {
+        gameMain.classList.remove('cal-fullscreen');
+    }
 }
 
 function updateUI(data) {
@@ -761,10 +765,12 @@ function startSessionLoop() {
     sessionLoop = setInterval(async () => {
         if (!isCalibrated) return;
         try {
+            const fb64 = getFrameBase64();
+            if (!fb64) return;
             const res  = await fetch('/api/process_frame', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ image_b64: getFrameBase64() }),
+                body: JSON.stringify({ image_b64: fb64 }),
             });
             const data = await res.json();
             if (data.state)    updateStatusBadge(data.state);

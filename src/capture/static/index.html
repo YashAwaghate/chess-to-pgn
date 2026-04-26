@@ -23,58 +23,25 @@
         <!-- ── Step 0: Game Setup ──────────────────────────────────────────── -->
         <div id="setup-panel" class="setup-panel">
             <h2>New Game</h2>
-            <div class="setup-grid">
+            <div class="setup-grid setup-grid--players">
                 <div class="form-group">
                     <label for="inp-white">White Player</label>
-                    <input type="text" id="inp-white" placeholder="White" autocomplete="off" />
+                    <input type="text" id="inp-white" placeholder="White" autocomplete="off" value="test1" />
                 </div>
                 <div class="form-group">
                     <label for="inp-black">Black Player</label>
-                    <input type="text" id="inp-black" placeholder="Black" autocomplete="off" />
-                </div>
-                <div class="form-group">
-                    <label for="inp-event">Event / Game Name</label>
-                    <input type="text" id="inp-event" placeholder="Auto-filled" />
-                </div>
-                <div class="form-group">
-                    <label for="inp-site">Site / Location</label>
-                    <input type="text" id="inp-site" placeholder="e.g. Home, Club" />
-                </div>
-                <div class="form-group">
-                    <label for="inp-date">Date</label>
-                    <input type="date" id="inp-date" />
-                </div>
-                <div class="form-group">
-                    <label for="inp-round">Round</label>
-                    <input type="text" id="inp-round" placeholder="-" />
-                </div>
-                <div class="form-group">
-                    <label for="inp-tc">Time Control</label>
-                    <select id="inp-tc">
-                        <option value="Casual">Casual</option>
-                        <option value="Bullet 1+0">Bullet (1+0)</option>
-                        <option value="Bullet 2+1">Bullet (2+1)</option>
-                        <option value="Blitz 3+0">Blitz (3+0)</option>
-                        <option value="Blitz 3+2">Blitz (3+2)</option>
-                        <option value="Blitz 5+0">Blitz (5+0)</option>
-                        <option value="Blitz 5+3">Blitz (5+3)</option>
-                        <option value="Rapid 10+0">Rapid (10+0)</option>
-                        <option value="Rapid 15+10">Rapid (15+10)</option>
-                        <option value="Classical 30+0">Classical (30+0)</option>
-                        <option value="Classical 60+0">Classical (60+0)</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="inp-notes">Notes</label>
-                    <input type="text" id="inp-notes" placeholder="Optional" />
+                    <input type="text" id="inp-black" placeholder="Black" autocomplete="off" value="test2" />
                 </div>
             </div>
-            <div class="form-group" style="margin-bottom:1rem;">
-                <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; text-transform:none; font-size:0.88rem;">
-                    <input type="checkbox" id="inp-save-raw" style="width:18px; height:18px;"> Save raw camera images
-                </label>
-            </div>
-            <div class="setup-actions">
+            <!-- hidden fields kept for server compatibility -->
+            <input type="hidden" id="inp-event" />
+            <input type="hidden" id="inp-site" />
+            <input type="hidden" id="inp-date" />
+            <input type="hidden" id="inp-round" value="-" />
+            <input type="hidden" id="inp-tc" value="Casual" />
+            <input type="hidden" id="inp-notes" />
+            <input type="hidden" id="inp-save-raw" value="false" />
+            <div class="setup-actions" style="margin-top:1.4rem;">
                 <button id="btn-start-session" class="btn primary large full-width">Start Session →</button>
             </div>
         </div>

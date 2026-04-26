@@ -162,9 +162,17 @@ class GridCorrectionData(BaseModel):
 # ──────────────────────────── Helpers ────────────────────────────────────────
 
 def decode_image(b64: str) -> np.ndarray:
+    if not b64:
+        raise ValueError("Empty image data received")
     if "," in b64:
         b64 = b64.split(",")[1]
-    return cv2.imdecode(np.frombuffer(base64.b64decode(b64), np.uint8), cv2.IMREAD_COLOR)
+    buf = np.frombuffer(base64.b64decode(b64), np.uint8)
+    if buf.size == 0:
+        raise ValueError("Decoded image buffer is empty")
+    img = cv2.imdecode(buf, cv2.IMREAD_COLOR)
+    if img is None:
+        raise ValueError("cv2.imdecode failed — invalid or unsupported image format")
+    return img
 
 def encode_image(img: np.ndarray) -> str:
     _, buf = cv2.imencode('.jpg', img)

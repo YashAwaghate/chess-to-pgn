@@ -361,6 +361,27 @@ main {
     color: var(--moving);
 }
 
+/* ── Fullscreen calibration mode (hides sidebar) ─────────── */
+main.cal-fullscreen {
+    grid-template-columns: 1fr;
+}
+
+main.cal-fullscreen .sidebar {
+    display: none;
+}
+
+main.cal-fullscreen .video-container {
+    aspect-ratio: unset;
+    height: calc(100dvh - 100px);   /* fill viewport minus header */
+    max-height: 90vw;               /* cap on very wide screens */
+}
+
+/* ── Slim setup grid (players only) ──────────────────────── */
+.setup-grid--players {
+    grid-template-columns: 1fr 1fr;
+    max-width: 480px;
+}
+
 /* ── Mobile responsive ────────────────────────────────────── */
 @media (max-width: 768px) {
     .container {
@@ -383,6 +404,14 @@ main {
     /* Taller video on mobile so the board is easier to frame */
     .video-container {
         aspect-ratio: 3/4;
+    }
+
+    /* Fullscreen calibration on mobile — truly fill the screen */
+    main.cal-fullscreen .video-container {
+        height: calc(100dvh - 80px);
+        max-height: none;
+        aspect-ratio: unset;
+        border-radius: 0;
     }
 
     .sidebar {
