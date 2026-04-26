@@ -3,10 +3,17 @@ Detect chess moves by diffing consecutive FEN positions and validating
 against legal moves using python-chess.
 """
 
+import math
 import chess
+import numpy as np
 from typing import Optional
 
 from src.pipeline.fen_generator import predictions_to_fen, fen_position_only
+
+# Canonical FEN class ordering matching ChessPieceClassifier.fen_class_order
+FEN_CLASSES = ['empty', 'P', 'N', 'B', 'R', 'Q', 'K',
+               'p', 'n', 'b', 'r', 'q', 'k']
+_FEN_CLASS_TO_IDX = {c: i for i, c in enumerate(FEN_CLASSES)}
 
 
 def fen_to_piece_map(fen_position: str) -> dict:
@@ -212,6 +219,159 @@ def detect_move_with_feedback(
 
 # All 64 squares in FEN order — needed by detect_move_with_feedback
 _ALL_SQUARES = [f"{f}{r}" for r in "87654321" for f in "abcdefgh"]
+
+
+# ---------------------------------------------------------------------------
+# Bayesian move-history prior
+# ---------------------------------------------------------------------------
+def detect_move_with_prior(
+    prev_fen_pos: str,
+    full_probs: dict,
+    board: chess.Board,
+    prior_weight: float = 1.0,
+) -> tuple:
+    """Score every legal move by its Bayesian posterior under the full
+    classifier softmax, and return the argmax.
+
+    Given the classifier output p(piece | square, image) — a 13-way softmax
+    per square — and a uniform prior over legal moves, the log-posterior
+    of a candidate move m is:
+
+        log P(m | image, history) = sum_{sq} log p(piece_m(sq) | square, image)
+
+    where piece_m(sq) is the piece that would occupy `sq` after applying m.
+    This is exactly Naive-Bayes with the 64 squares as conditionally-
+    independent features under each move hypothesis.
+
+    The `prior_weight` term scales the log-likelihood of squares that
+    *change* relative to squares that stay the same — a higher weight
+    emphasises the few cells that actually carry move information.
+
+    Advantage over the existing feedback loop: we never truncate at "top-1
+    per square", so a move is chosen even when the raw per-square argmax
+    doesn't lead to any legal position. This directly addresses the 77 / 100
+    failure rate seen on ChessReD games where 1–3 squares are mis-classified.
+
+    Parameters
+    ----------
+    prev_fen_pos : str    — FEN position before the move
+    full_probs   : dict   — {square: np.ndarray(13)} softmax over FEN_CLASSES
+    board        : chess.Board — game state at prev_fen_pos
+    prior_weight : float  — weight on changed-square likelihood (default 1.0)
+
+    Returns
+    -------
+    (san_move, tag, score)
+      san_move : SAN string of the best move, or None if no legal moves
+      tag      : 'sure' if the argmax-per-square FEN is already legal,
+                 'prior' if the Bayesian prior was decisive,
+                 'failed' if the board has no legal moves
+      score    : log-posterior of the chosen move (higher = more confident)
+    """
+    if not list(board.legal_moves):
+        return None, 'failed', -math.inf
+
+    # Fast path: does the raw argmax-per-square FEN already match a legal move?
+    argmax_preds = {}
+    for sq, probs in full_probs.items():
+        idx = int(np.argmax(probs))
+        argmax_preds[sq] = (FEN_CLASSES[idx], float(probs[idx]))
+    curr_pos = fen_position_only(predictions_to_fen(argmax_preds))
+    san_fast = detect_move(prev_fen_pos, curr_pos, board)
+    if san_fast:
+        return san_fast, 'sure', 0.0
+
+    # Score every legal move under the full softmax
+    prev_map = fen_to_piece_map(prev_fen_pos)
+    best_move, best_score = None, -math.inf
+
+    # Pre-compute log-probs once (add epsilon for numerical stability)
+    log_probs = {sq: np.log(np.maximum(full_probs[sq], 1e-8)) for sq in _ALL_SQUARES}
+
+    for move in board.legal_moves:
+        board.push(move)
+        resulting_pos = board.fen().split(' ')[0]
+        board.pop()
+        result_map = fen_to_piece_map(resulting_pos)
+
+        score = 0.0
+        for sq in _ALL_SQUARES:
+            resulting_piece = result_map.get(sq, 'empty')
+            prev_piece = prev_map.get(sq, 'empty')
+            class_idx = _FEN_CLASS_TO_IDX[resulting_piece]
+            sq_log_p = log_probs[sq][class_idx]
+            if resulting_piece != prev_piece:
+                score += prior_weight * sq_log_p
+            else:
+                score += sq_log_p
+
+        if score > best_score:
+            best_score = score
+            best_move = move
+
+    if best_move is None:
+        return None, 'failed', -math.inf
+    return board.san(best_move), 'prior', best_score
+
+
+def detect_moves_sequence_with_prior(
+    frames_full_probs: list,
+    prior_weight: float = 1.0,
+) -> dict:
+    """Run the Bayesian-prior detector over a sequence of per-frame softmaxes.
+
+    Much simpler than `detect_moves_sequence_with_feedback` because the
+    Bayesian prior already handles classifier noise gracefully — we never
+    need a consensus re-sync when every move is a direct argmax over the
+    legal-move space.
+
+    Parameters
+    ----------
+    frames_full_probs : list of dict {square: np.ndarray(13)}
+        Per-frame softmax outputs from predict_board_full_probs().
+
+    Returns
+    -------
+    dict with 'moves', 'move_tags', 'board', 'errors', 'skipped'
+    """
+    if len(frames_full_probs) < 2:
+        return {'moves': [], 'move_tags': [], 'board': chess.Board(),
+                'errors': [], 'skipped': 0}
+
+    board = chess.Board()
+    moves, move_tags, errors = [], [], []
+    skipped = 0
+
+    prev_pos = fen_position_only(predictions_to_fen({
+        sq: (FEN_CLASSES[int(np.argmax(p))], float(p[int(np.argmax(p))]))
+        for sq, p in frames_full_probs[0].items()
+    }))
+
+    for i in range(1, len(frames_full_probs)):
+        probs = frames_full_probs[i]
+        # Skip if argmax FEN equals prev FEN (no move detected)
+        argmax_fen = fen_position_only(predictions_to_fen({
+            sq: (FEN_CLASSES[int(np.argmax(p))], float(p[int(np.argmax(p))]))
+            for sq, p in probs.items()
+        }))
+        if argmax_fen == prev_pos:
+            skipped += 1
+            continue
+
+        san, tag, score = detect_move_with_prior(prev_pos, probs, board,
+                                                 prior_weight=prior_weight)
+        if san is None:
+            errors.append({'index': i, 'reason': 'no_legal_moves'})
+            continue
+
+        move = board.parse_san(san)
+        board.push(move)
+        moves.append(san)
+        move_tags.append(tag)
+        prev_pos = board.fen().split(' ')[0]
+
+    return {'moves': moves, 'move_tags': move_tags, 'board': board,
+            'errors': errors, 'skipped': skipped}
 
 
 def detect_moves_sequence(fen_positions: list, fuzzy_threshold: int = 62) -> dict:
@@ -442,3 +602,193 @@ def detect_moves_sequence_with_feedback(
         'resyncs': resyncs,
         'skipped': skipped,
     }
+
+
+# ---------------------------------------------------------------------------
+# Temporal board tracker
+# ---------------------------------------------------------------------------
+
+class TemporalBoardTracker:
+    """Maintains running board state and applies temporal heuristics to resolve
+    uncertain classifier predictions frame by frame.
+
+    Three complementary strategies are combined:
+
+    1. **Change-mask gating** — squares that agree between the confirmed board
+       FEN and the current classifier argmax are treated as stable. Their softmax
+       is overridden with a near-certain prior (STABLE_BOOST) so the Bayesian
+       detector ignores them and focuses only on the 2-4 diff squares.
+
+    2. **Piece-inventory constraint** — after each confirmed move the tracker
+       knows exactly how many of each piece type remain. If the classifier
+       over-predicts a piece type (e.g. reports 3 white rooks when only 2 exist),
+       the lowest-confidence excess predictions are squashed toward 'empty'.
+
+    3. **Bayesian move detection** — the adjusted softmax is passed to
+       `detect_move_with_prior`, which scores every legal move by the product of
+       per-square likelihoods and picks the highest-scoring one.
+
+    Usage::
+
+        tracker = TemporalBoardTracker()
+        for frame_probs in sequence_of_softmax_dicts:
+            san, tag = tracker.push(frame_probs)
+            if san:
+                print(san, tag)
+        print(tracker.board.fen())
+    """
+
+    # Confidence used to represent "we're certain this square is stable"
+    STABLE_BOOST = 0.97
+
+    def __init__(self, prior_weight: float = 2.0):
+        """
+        Parameters
+        ----------
+        prior_weight : float
+            Multiplier on the log-likelihood of changed squares vs stable ones
+            inside `detect_move_with_prior`. Higher → more aggressive about
+            trusting the diff mask over the background. Default 2.0 works well
+            when change-mask gating is active.
+        """
+        self.board = chess.Board()
+        self.prior_weight = prior_weight
+        self._confirmed_pos = self.board.fen().split(' ')[0]
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def push(self, full_probs: dict) -> tuple:
+        """Process one frame's softmax output and attempt to detect a move.
+
+        Parameters
+        ----------
+        full_probs : dict {square: np.ndarray(shape=(13,))}
+            Raw softmax from `ChessPieceClassifier.predict_board_full_probs()`.
+
+        Returns
+        -------
+        (san_move, tag) where:
+          san_move : str | None  — SAN of the detected move, or None if no change
+          tag      : str         — 'sure' | 'prior' | 'no_change' | 'failed'
+        """
+        # Fast path: argmax matches confirmed board → no move
+        argmax_pos = self._argmax_pos(full_probs)
+        if argmax_pos == self._confirmed_pos:
+            return None, 'no_change'
+
+        adjusted = self._apply_temporal_heuristics(full_probs)
+        san, tag, _ = detect_move_with_prior(
+            self._confirmed_pos, adjusted, self.board,
+            prior_weight=self.prior_weight,
+        )
+
+        if san:
+            move = self.board.parse_san(san)
+            self.board.push(move)
+            self._confirmed_pos = self.board.fen().split(' ')[0]
+
+        return san, tag
+
+    def reset(self):
+        """Reset to starting position."""
+        self.board = chess.Board()
+        self._confirmed_pos = self.board.fen().split(' ')[0]
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _argmax_pos(self, full_probs: dict) -> str:
+        preds = {
+            sq: (FEN_CLASSES[int(np.argmax(p))], float(p[int(np.argmax(p))]))
+            for sq, p in full_probs.items()
+        }
+        return fen_position_only(predictions_to_fen(preds))
+
+    def _apply_temporal_heuristics(self, full_probs: dict) -> dict:
+        """Return a modified softmax dict with change-mask gating and
+        inventory constraints applied."""
+        confirmed_map = fen_to_piece_map(self._confirmed_pos)
+        argmax_map = fen_to_piece_map(self._argmax_pos(full_probs))
+
+        # --- 1. Identify stable vs changed squares ---
+        changed = set()
+        for sq in _ALL_SQUARES:
+            if confirmed_map.get(sq, 'empty') != argmax_map.get(sq, 'empty'):
+                changed.add(sq)
+
+        # --- 2. Build adjusted softmax ---
+        adjusted = {}
+        for sq in _ALL_SQUARES:
+            if sq not in changed:
+                # Stable square: inject a strong prior matching confirmed board
+                vec = np.full(13, (1.0 - self.STABLE_BOOST) / 12, dtype=np.float32)
+                confirmed_piece = confirmed_map.get(sq, 'empty')
+                vec[_FEN_CLASS_TO_IDX[confirmed_piece]] = self.STABLE_BOOST
+                adjusted[sq] = vec
+            else:
+                adjusted[sq] = full_probs[sq].copy()
+
+        # --- 3. Inventory constraint on changed squares only ---
+        # Count how many of each piece the classifier currently predicts
+        # across changed squares, versus what the confirmed board holds.
+        # If a piece is over-predicted, squash excess to 'empty'.
+        self._squash_excess_pieces(adjusted, confirmed_map, changed)
+
+        return adjusted
+
+    def _squash_excess_pieces(self, adjusted: dict, confirmed_map: dict,
+                              changed: set):
+        """Squash excess piece predictions on changed squares to enforce inventory.
+
+        For each piece type, count how many are on the confirmed board. If the
+        adjusted argmax on changed squares would push the total above that count
+        (e.g. predicts a third rook when only two exist), the lowest-confidence
+        rook prediction among the changed squares is replaced with 'empty'.
+        """
+        # Inventory: how many of each piece are confirmed
+        inventory: dict = {}
+        for piece in confirmed_map.values():
+            inventory[piece] = inventory.get(piece, 0) + 1
+
+        # Current argmax on ALL squares given adjusted probs
+        # Stable squares already match confirmed, so only changed need checking
+        for piece_type in list(FEN_CLASSES):
+            if piece_type == 'empty':
+                continue
+            confirmed_count = inventory.get(piece_type, 0)
+
+            # How many confirmed (stable) squares already have this piece?
+            stable_count = sum(
+                1 for sq in _ALL_SQUARES
+                if sq not in changed and confirmed_map.get(sq, 'empty') == piece_type
+            )
+
+            # How many changed squares does the classifier predict this piece on?
+            changed_preds = [
+                (sq, float(adjusted[sq][_FEN_CLASS_TO_IDX[piece_type]]))
+                for sq in changed
+                if FEN_CLASSES[int(np.argmax(adjusted[sq]))] == piece_type
+            ]
+
+            budget = confirmed_count - stable_count  # how many can exist on changed squares
+            excess = len(changed_preds) - max(budget, 0)
+            if excess <= 0:
+                continue
+
+            # Squash the lowest-confidence excess predictions → empty
+            changed_preds.sort(key=lambda x: x[1])  # ascending confidence
+            empty_idx = _FEN_CLASS_TO_IDX['empty']
+            piece_idx = _FEN_CLASS_TO_IDX[piece_type]
+            for sq, _ in changed_preds[:excess]:
+                vec = adjusted[sq].copy()
+                # Swap: give the empty class what the piece class had, zero the piece
+                vec[empty_idx] += vec[piece_idx]
+                vec[piece_idx] = 0.0
+                # Renormalize
+                total = vec.sum()
+                if total > 0:
+                    vec /= total
+                adjusted[sq] = vec

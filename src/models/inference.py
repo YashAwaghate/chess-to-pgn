@@ -125,23 +125,46 @@ class PretrainedBoardClassifier:
         -------
         dict {square_name: (piece_class, confidence)}
         """
+        probs_fen = self.predict_full_board_probs(raw_img)
+        results = {}
+        fen_order = ['empty', 'P', 'N', 'B', 'R', 'Q', 'K',
+                     'p', 'n', 'b', 'r', 'q', 'k']
+        for square, probs in probs_fen.items():
+            idx = int(np.argmax(probs))
+            results[square] = (fen_order[idx], float(probs[idx]))
+        return results
+
+    def predict_full_board_probs(self, raw_img: np.ndarray) -> dict:
+        """Return full 13-class softmax per square.
+
+        Output class order matches ChessPieceClassifier.fen_class_order:
+        ['empty','P','N','B','R','Q','K','p','n','b','r','q','k']
+        — i.e. empty first, then white pieces, then black.
+        """
         import cv2
         rgb = cv2.cvtColor(raw_img, cv2.COLOR_BGR2RGB)
-        # Match dataset.py: make a float [0-255] CHW tensor before applying transform
-        t = torch.from_numpy(rgb).permute(2, 0, 1).float()  # [3, H, W], values 0-255
+        t = torch.from_numpy(rgb).permute(2, 0, 1).float()
         tensor = self.transform(t).unsqueeze(0).to(self.device)
 
         with torch.no_grad():
-            logits = self.model(tensor)            # (1, 832)
-            logits = logits.view(1, 64, 13)        # (1, 64, 13)
-            probs = torch.softmax(logits, dim=2)   # (1, 64, 13)
-            confs, idxs = probs.max(dim=2)         # (1, 64) each
+            logits = self.model(tensor).view(1, 64, 13)
+            probs = torch.softmax(logits, dim=2).squeeze(0).cpu().numpy()  # (64, 13)
+
+        # The checkpoint's internal ordering is ChessReD's _CHESSRED_ID_TO_PIECE:
+        #   0..5 = P,R,N,B,Q,K (white); 6..11 = p,r,n,b,q,k (black); 12 = empty
+        # Remap to fen_class_order.
+        fen_order = ['empty', 'P', 'N', 'B', 'R', 'Q', 'K',
+                     'p', 'n', 'b', 'r', 'q', 'k']
+        chessred_to_fen = {0:'P',1:'R',2:'N',3:'B',4:'Q',5:'K',
+                           6:'p',7:'r',8:'n',9:'b',10:'q',11:'k',12:'empty'}
+        remap = [fen_order.index(chessred_to_fen[i]) for i in range(13)]
 
         results = {}
         for i, square in enumerate(_FEN_SQUARES):
-            class_id = idxs[0, i].item()
-            conf = confs[0, i].item()
-            results[square] = (_CHESSRED_ID_TO_PIECE[class_id], conf)
+            row = np.zeros(13, dtype=np.float32)
+            for src, dst in enumerate(remap):
+                row[dst] = probs[i, src]
+            results[square] = row
         return results
 
     def predict_board(self, patches: dict) -> dict:
@@ -186,12 +209,26 @@ _FOLDER_TO_FEN = {
 
 
 class ChessPieceClassifier:
-    """Wraps the trained ChessPieceCNN for inference."""
+    """Wraps the trained ChessPieceCNN for inference.
 
-    def __init__(self, model_path='models/chess_piece_classifier.pth', device=None):
+    Supports three inference modes:
+      - plain:  one forward pass per square, top-1 prediction (baseline)
+      - TTA:    averages softmax over `tta_views` augmented crops per square
+      - temperature-scaled: divides logits by `temperature` before softmax
+                            to produce calibrated confidences
+
+    Also exposes `predict_board_full_probs()` which returns the full
+    13-class softmax vector per square, required by the move-history
+    Bayesian prior in move_detector.detect_move_with_prior().
+    """
+
+    def __init__(self, model_path='models/chess_piece_classifier.pth', device=None,
+                 temperature: float = 1.0, tta_views: int = 1):
         if device is None:
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.device = torch.device(device)
+        self.temperature = float(temperature)
+        self.tta_views = int(tta_views)
 
         checkpoint = torch.load(model_path, map_location=self.device, weights_only=True)
 
@@ -210,6 +247,15 @@ class ChessPieceClassifier:
             # Fallback: assume CLASS_NAMES ordering
             self.idx_to_class = {i: name for i, name in enumerate(CLASS_NAMES)}
 
+        # Canonical FEN piece ordering used by the Bayesian prior
+        self.fen_class_order = ['empty', 'P', 'N', 'B', 'R', 'Q', 'K',
+                                'p', 'n', 'b', 'r', 'q', 'k']
+        # Map model's output index → position in fen_class_order
+        self._idx_to_fen_pos = [
+            self.fen_class_order.index(self.idx_to_class[i])
+            for i in range(num_classes)
+        ]
+
         self.model = ChessPieceCNN(num_classes=num_classes).to(self.device)
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.model.eval()
@@ -219,6 +265,35 @@ class ChessPieceClassifier:
             transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                  std=[0.229, 0.224, 0.225]),
         ])
+
+    # ------------------------------------------------------------------
+    # TTA helpers
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _tta_variants(rgb_50: np.ndarray, n_views: int) -> list:
+        """Produce n_views mild augmentations of a 50×50 RGB crop.
+
+        Chess pieces are orientation-sensitive (a knight at 180° ≠ knight),
+        so we only use photometric / translation jitter — NOT rotations.
+        """
+        import cv2
+        out = [rgb_50]
+        if n_views <= 1:
+            return out
+        h, w = rgb_50.shape[:2]
+        # shift +/- 2 pixels
+        shifts = [(2, 0), (-2, 0), (0, 2), (0, -2), (2, 2), (-2, -2)]
+        for dx, dy in shifts[: n_views - 1]:
+            M = np.float32([[1, 0, dx], [0, 1, dy]])
+            shifted = cv2.warpAffine(rgb_50, M, (w, h), borderMode=cv2.BORDER_REFLECT)
+            out.append(shifted)
+        # brightness nudges
+        if n_views > len(out):
+            for scale in (0.92, 1.08):
+                if n_views <= len(out):
+                    break
+                out.append(np.clip(rgb_50.astype(np.float32) * scale, 0, 255).astype(np.uint8))
+        return out[:n_views]
 
     def predict_square(self, patch: np.ndarray) -> tuple:
         """Predict piece class for a single 50×50 BGR patch.
@@ -243,6 +318,9 @@ class ChessPieceClassifier:
     def predict_board(self, patches: dict) -> dict:
         """Batch-predict all 64 squares.
 
+        Respects self.tta_views (averages softmax over augmentations) and
+        self.temperature (divides logits before softmax).
+
         Parameters
         ----------
         patches : dict {square_name: numpy_patch (BGR)}
@@ -251,26 +329,51 @@ class ChessPieceClassifier:
         -------
         dict {square_name: (class_name, confidence)}
         """
+        probs_per_sq = self.predict_board_full_probs(patches)
+        results = {}
+        for sq, probs in probs_per_sq.items():
+            idx = int(np.argmax(probs))
+            results[sq] = (self.fen_class_order[idx], float(probs[idx]))
+        return results
+
+    def predict_board_full_probs(self, patches: dict) -> dict:
+        """Return the full 13-class softmax vector for every square.
+
+        Needed by the Bayesian move-history prior, which multiplies
+        classifier likelihoods by a legal-move prior before arg-maxing.
+
+        Output class order is always self.fen_class_order, i.e.
+        ['empty','P','N','B','R','Q','K','p','n','b','r','q','k'],
+        regardless of the checkpoint's internal folder ordering.
+
+        Returns
+        -------
+        dict {square_name: np.ndarray(shape=(13,), dtype=float32)}
+        """
         import cv2
 
         square_names = sorted(patches.keys())
-        batch = []
+        # Build a tensor of (64 × tta_views, 3, 50, 50)
+        views_per_sq = max(1, self.tta_views)
+        all_tensors = []
         for sq in square_names:
             patch = patches[sq]
             rgb = cv2.cvtColor(patch, cv2.COLOR_BGR2RGB)
             rgb = cv2.resize(rgb, (50, 50))
-            batch.append(self.transform(rgb))
+            for variant in self._tta_variants(rgb, views_per_sq):
+                all_tensors.append(self.transform(variant))
 
-        batch_tensor = torch.stack(batch).to(self.device)
-
+        batch_tensor = torch.stack(all_tensors).to(self.device)
         with torch.no_grad():
-            logits = self.model(batch_tensor)
-            probs = torch.softmax(logits, dim=1)
-            confs, idxs = probs.max(1)
+            logits = self.model(batch_tensor) / self.temperature
+            probs_model = torch.softmax(logits, dim=1).cpu().numpy()
 
-        results = {}
-        for i, sq in enumerate(square_names):
-            class_name = self.idx_to_class[idxs[i].item()]
-            results[sq] = (class_name, confs[i].item())
+        # Average softmax across views, then re-order columns to fen_class_order
+        num_sq = len(square_names)
+        probs_model = probs_model.reshape(num_sq, views_per_sq, -1).mean(axis=1)
 
-        return results
+        probs_fen = np.zeros((num_sq, 13), dtype=np.float32)
+        for src_idx, dst_idx in enumerate(self._idx_to_fen_pos):
+            probs_fen[:, dst_idx] = probs_model[:, src_idx]
+
+        return {sq: probs_fen[i] for i, sq in enumerate(square_names)}

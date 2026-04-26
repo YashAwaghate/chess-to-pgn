@@ -7,6 +7,7 @@ import shutil
 # CONFIGURATION
 SQUARE_SIZE = 50
 BOARD_SIZE = 8 * SQUARE_SIZE  # 400
+PATCH_PADDING = 6  # extra pixels on each side when extracting square patches — matches training
 CANVAS_HEIGHT = BOARD_SIZE    # 400 — no extra height, board fills the whole image
 BOARD_START_Y = 0             # Board grid starts at Y=0
 
@@ -338,10 +339,13 @@ def crop_squares_from_grid(board_img, grid, rotation=0):
     files = "abcdefgh"
     ranks = "87654321"
 
+    h_img, w_img = board_img.shape[:2]
     for i in range(8):
         for j in range(8):
-            x1, x2 = x_lines[j], x_lines[j + 1]
-            y1, y2 = y_lines[i], y_lines[i + 1]
+            x1 = max(0, x_lines[j] - PATCH_PADDING)
+            x2 = min(w_img, x_lines[j + 1] + PATCH_PADDING)
+            y1 = max(0, y_lines[i] - PATCH_PADDING)
+            y2 = min(h_img, y_lines[i + 1] + PATCH_PADDING)
             patch = board_img[y1:y2, x1:x2]
 
             if rotation == 0:

@@ -34,3 +34,8 @@ coverage.xml
 *.h5
 *.pt
 *.task
+
+# Project-specific
+poster_assets/
+stats_output_model/
+scripts/
