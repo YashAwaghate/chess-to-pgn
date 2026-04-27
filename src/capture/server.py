@@ -835,7 +835,7 @@ def labeling_get_predictions(game_id: str, idx: str):
                     key = f"{S3_PREFIX}/{game_id}/{sub}{idx}.jpg"
                     resp = _s3_client.get_object(Bucket=S3_BUCKET, Key=key)
                     data = resp["Body"].read()
-                    arr = np.frombuffer(data, np.uint8)
+                    arr = np.frombuffer(data, np.uint8).copy()
                     img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
                     break
                 except Exception:
