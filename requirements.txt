@@ -3,7 +3,7 @@ fastapi>=0.110
 uvicorn>=0.29
 
 # Computer vision
-opencv-contrib-python>=4.9
+opencv-python-headless==4.10.0.84
 mediapipe>=0.10.0
 
 # AWS
