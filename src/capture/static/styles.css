@@ -371,15 +371,95 @@ main.cal-fullscreen .sidebar {
 }
 
 main.cal-fullscreen .video-container {
-    aspect-ratio: unset;
-    height: calc(100dvh - 100px);   /* fill viewport minus header */
-    max-height: 90vw;               /* cap on very wide screens */
+    aspect-ratio: 4/3;
+    width: 100%;
+    max-height: calc(100dvh - 120px);
+    max-width: calc((100dvh - 120px) * 4 / 3);
+    margin: 0 auto;
 }
 
 /* ── Slim setup grid (players only) ──────────────────────── */
 .setup-grid--players {
     grid-template-columns: 1fr 1fr;
     max-width: 480px;
+}
+
+/* ── PGN screen (post-game export) ───────────────────────── */
+.pgn-screen {
+    position: fixed;
+    inset: 0;
+    background: rgba(13, 17, 23, 0.92);
+    backdrop-filter: blur(8px);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    overflow-y: auto;
+}
+
+.pgn-card {
+    width: 100%;
+    max-width: 640px;
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 1.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+}
+
+.pgn-card h2 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: white;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.5rem;
+}
+
+.pgn-meta {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+.pgn-meta strong { color: var(--text-main); }
+
+#pgn-text {
+    width: 100%;
+    min-height: 220px;
+    background: rgba(0,0,0,0.5);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.8rem;
+    color: var(--text-main);
+    font-family: 'Consolas', 'Menlo', monospace;
+    font-size: 0.85rem;
+    resize: vertical;
+    outline: none;
+}
+
+#pgn-text:focus { border-color: var(--accent); }
+
+.pgn-actions {
+    display: flex;
+    gap: 0.6rem;
+}
+
+.pgn-actions .btn { flex: 1; }
+
+.pgn-divider {
+    height: 1px;
+    background: var(--border-color);
+    margin: 0.25rem 0;
+}
+
+.pgn-next {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
 }
 
 /* ── Mobile responsive ────────────────────────────────────── */
@@ -406,11 +486,12 @@ main.cal-fullscreen .video-container {
         aspect-ratio: 3/4;
     }
 
-    /* Fullscreen calibration on mobile — truly fill the screen */
+    /* Fullscreen calibration on mobile — fill more screen, keep 4:3 */
     main.cal-fullscreen .video-container {
-        height: calc(100dvh - 80px);
-        max-height: none;
-        aspect-ratio: unset;
+        aspect-ratio: 4/3;
+        width: 100%;
+        max-height: calc(100dvh - 100px);
+        max-width: calc((100dvh - 100px) * 4 / 3);
         border-radius: 0;
     }
 

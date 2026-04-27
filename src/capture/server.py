@@ -414,6 +414,56 @@ def reset_session():
     return {"status": "success"}
 
 
+@app.post("/api/new_game_same_calibration")
+def new_game_same_calibration(data: GameSetupData):
+    """Start a new game while keeping the existing calibration (perspective,
+    grid, orientation). Resets game_id, move counter, and metadata."""
+    if session.perspective_matrix is None:
+        return JSONResponse(status_code=400,
+                            content={"message": "No active calibration to reuse"})
+
+    # Generate a fresh game_id, keep all calibration state intact
+    sessions_dir = os.path.join(project_root, "data", "sessions")
+    os.makedirs(sessions_dir, exist_ok=True)
+    n = len([d for d in os.listdir(sessions_dir)
+             if os.path.isdir(os.path.join(sessions_dir, d))]) + 1
+    session.game_id = f"SESSION_{n:03d}_{uuid.uuid4().hex[:4].upper()}"
+    session.move_number = 0
+    session.hand_exit_time = None
+    session.last_activity_time = time.time()
+
+    game_date = data.game_date or str(date.today())
+    white = data.white.strip() or "Player 1"
+    black = data.black.strip() or "Player 2"
+    event = data.event.strip() or f"{white} vs {black}"
+    site = data.site.strip() or "—"
+
+    session.game_info = {
+        "game_id":      session.game_id,
+        "white":        white,
+        "black":        black,
+        "event":        event,
+        "site":         site,
+        "date":         game_date,
+        "round":        data.round or "-",
+        "time_control": data.time_control or "Casual",
+        "result":       "*",
+        "notes":        data.notes or "",
+    }
+
+    # Save the existing warped setup frame as move 000 of the new game
+    if session.warped_setup_frame is not None:
+        save_and_upload(session.warped_setup_frame)
+
+    session.state = CaptureState.STATIC
+    logger.info(f"New game started with reused calibration: {session.game_id}")
+    return {
+        "status": "success",
+        "game_id": session.game_id,
+        "game_info": session.game_info,
+    }
+
+
 @app.post("/api/process_frame")
 def process_frame(data: FrameData):
     # Auto-reset stale calibration/orientation sessions
@@ -643,11 +693,19 @@ def generate_pgn_endpoint(game_id: str):
                 "model_path": model_path,
             })
 
-        result = process_game_session(
-            game_id=game_id,
-            model_path=model_path,
-            s3_bucket=S3_BUCKET or None,
-        )
+        # Prefer local session dir when it exists (avoids needing S3 creds locally)
+        local_dir = os.path.join(project_root, "data", "sessions", game_id)
+        if os.path.isdir(local_dir):
+            result = process_game_session(
+                local_dir=local_dir,
+                model_path=model_path,
+            )
+        else:
+            result = process_game_session(
+                game_id=game_id,
+                model_path=model_path,
+                s3_bucket=S3_BUCKET or None,
+            )
 
         # Upload PGN to S3 if available
         pgn_str = result['pgn']

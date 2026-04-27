@@ -630,16 +630,14 @@ function gridClientToImage(clientX, clientY) {
 
 function updateGridDrag(clientX, clientY) {
     if (gridDragIdx < 0 || !gridDragType) return;
-    // Outer lines (index 0 and 8) are locked to board edges — not draggable
-    if (gridDragIdx === 0 || gridDragIdx === 8) return;
     const img = gridClientToImage(clientX, clientY);
     const lines = gridDragType === 'x' ? correctedGrid.x_lines : correctedGrid.y_lines;
     const val = Math.round(gridDragType === 'x' ? img.x : img.y);
     const maxVal = gridDragType === 'x' ? (gridBoardImg.naturalWidth || 400) : (gridBoardImg.naturalHeight || 400);
 
-    // Constrain: can't cross neighbors, can't go past edges
-    const minVal = lines[gridDragIdx - 1] + 1;
-    const maxAllowed = lines[gridDragIdx + 1] - 1;
+    // Constrain: can't cross neighbors, can't go past image edges
+    const minVal = gridDragIdx === 0 ? 0 : lines[gridDragIdx - 1] + 1;
+    const maxAllowed = gridDragIdx === 8 ? maxVal : lines[gridDragIdx + 1] - 1;
     lines[gridDragIdx] = Math.max(minVal, Math.min(maxAllowed, val));
     drawGridLines();
 }
@@ -710,6 +708,42 @@ btnRedoOrient.addEventListener('click', () => {
 });
 
 // ─── End game / result ────────────────────────────────────────────────────────
+const pgnScreen     = document.getElementById('pgn-screen');
+const pgnText       = document.getElementById('pgn-text');
+const pgnMeta       = document.getElementById('pgn-meta');
+const btnCopyPgn    = document.getElementById('btn-copy-pgn');
+const btnDownloadPgn= document.getElementById('btn-download-pgn');
+const btnNewSameCal = document.getElementById('btn-new-same-cal');
+const btnNewFreshCal= document.getElementById('btn-new-fresh-cal');
+
+let lastGameId = null;
+
+async function showPgnScreen(result) {
+    pgnScreen.style.display = 'flex';
+    pgnText.value = 'Generating PGN…';
+    pgnMeta.innerHTML = '';
+    try {
+        const stateRes = await fetch('/api/state');
+        const stateData = await stateRes.json();
+        lastGameId = stateData.game_id;
+
+        const res = await fetch(`/api/generate_pgn/${lastGameId}`, { method: 'POST' });
+        const data = await res.json();
+        if (res.ok) {
+            pgnText.value = data.pgn || '(empty)';
+            const errCount = (data.errors || []).length;
+            pgnMeta.innerHTML =
+                `<strong>${lastGameId}</strong> · Result: <strong>${result}</strong> · ` +
+                `${(data.moves || []).length} moves detected` +
+                (errCount ? ` · <span style="color:var(--danger);">${errCount} errors</span>` : '');
+        } else {
+            pgnText.value = `Error: ${data.message || 'PGN generation failed'}`;
+        }
+    } catch (e) {
+        pgnText.value = `Error: ${e.message}`;
+    }
+}
+
 document.querySelectorAll('.result-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
         const result = btn.dataset.result;
@@ -721,12 +755,73 @@ document.querySelectorAll('.result-btn').forEach(btn => {
             });
             const data = await res.json();
             if (data.status === 'success') {
-                resultDisplay.innerText     = `Result recorded: ${result}`;
-                resultDisplay.style.display = '';
                 document.querySelectorAll('.result-btn').forEach(b => b.disabled = true);
+                showPgnScreen(result);
             }
         } catch (e) { console.error(e); }
     });
+});
+
+btnCopyPgn.addEventListener('click', async () => {
+    try {
+        await navigator.clipboard.writeText(pgnText.value);
+        const orig = btnCopyPgn.innerText;
+        btnCopyPgn.innerText = 'Copied ✓';
+        setTimeout(() => { btnCopyPgn.innerText = orig; }, 1500);
+    } catch {
+        pgnText.select();
+        document.execCommand('copy');
+    }
+});
+
+btnDownloadPgn.addEventListener('click', () => {
+    const blob = new Blob([pgnText.value], { type: 'application/x-chess-pgn' });
+    const url  = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${lastGameId || 'game'}.pgn`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+});
+
+btnNewSameCal.addEventListener('click', async () => {
+    btnNewSameCal.disabled = true;
+    btnNewSameCal.innerText = 'Starting…';
+    try {
+        const res = await fetch('/api/new_game_same_calibration', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                white: 'test1', black: 'test2',
+                event: '', site: '', game_date: new Date().toISOString().slice(0, 10),
+                round: '-', time_control: 'Casual', notes: '', save_raw: false,
+            }),
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+            pgnScreen.style.display = 'none';
+            populateGameInfo(data.game_info);
+            document.querySelectorAll('.result-btn').forEach(b => b.disabled = false);
+            updateStatusBadge('STATIC');
+            btnNewSameCal.disabled = false;
+            btnNewSameCal.innerText = 'New Game (Same Calibration)';
+        } else {
+            alert('Failed: ' + (data.message || ''));
+            btnNewSameCal.disabled = false;
+            btnNewSameCal.innerText = 'New Game (Same Calibration)';
+        }
+    } catch (e) {
+        console.error(e);
+        btnNewSameCal.disabled = false;
+        btnNewSameCal.innerText = 'New Game (Same Calibration)';
+    }
+});
+
+btnNewFreshCal.addEventListener('click', async () => {
+    pgnScreen.style.display = 'none';
+    btnReset.click();   // reuse existing full reset flow
 });
 
 // ─── Session loop ─────────────────────────────────────────────────────────────
@@ -796,6 +891,7 @@ btnReset.addEventListener('click', async () => {
     setupPanel.style.display    = '';
     endGamePanel.style.display  = 'none';
     resultDisplay.style.display = 'none';
+    pgnScreen.style.display     = 'none';
     document.querySelectorAll('.result-btn').forEach(b => b.disabled = false);
     btnCalibrate.disabled  = false;
     btnCalibrate.innerText = 'Calibrate';
