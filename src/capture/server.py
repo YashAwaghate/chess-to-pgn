@@ -162,10 +162,7 @@ class GridCorrectionData(BaseModel):
 # ──────────────────────────── Helpers ────────────────────────────────────────
 
 def decode_image(b64: str) -> np.ndarray:
-    """Decode a base64-encoded image to BGR ndarray.
-
-    Tries PIL first (robust across OpenCV versions); falls back to cv2.imdecode.
-    """
+    """Decode a base64-encoded image to BGR ndarray. PIL only — no cv2.imdecode."""
     if not b64:
         raise ValueError("Empty image data received")
     if "," in b64:
@@ -173,23 +170,22 @@ def decode_image(b64: str) -> np.ndarray:
     raw = base64.b64decode(b64)
     if not raw:
         raise ValueError("Decoded image buffer is empty")
+    logger.info(f"decode_image: raw bytes={len(raw)}, first 4 bytes={raw[:4].hex()}")
 
-    # Primary path: PIL — sidesteps cv2.imdecode buffer-typing issues entirely.
+    from PIL import Image
+    import io
     try:
-        from PIL import Image
-        import io
-        pil_img = Image.open(io.BytesIO(raw)).convert("RGB")
-        rgb = np.array(pil_img, dtype=np.uint8)
-        return cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
-    except Exception as pil_err:
-        logger.warning(f"PIL decode failed, falling back to cv2: {pil_err}")
+        pil_img = Image.open(io.BytesIO(raw))
+        pil_img.load()
+        pil_img = pil_img.convert("RGB")
+    except Exception as e:
+        logger.error(f"PIL.Image.open failed: {type(e).__name__}: {e}")
+        raise ValueError(f"Could not decode image: {e}")
 
-    # Fallback: cv2.imdecode
-    buf = np.frombuffer(raw, np.uint8).copy()
-    img = cv2.imdecode(buf, cv2.IMREAD_COLOR)
-    if img is None:
-        raise ValueError("Both PIL and cv2.imdecode failed")
-    return img
+    rgb = np.asarray(pil_img, dtype=np.uint8)
+    bgr = rgb[:, :, ::-1].copy()  # RGB→BGR via slice (no cv2 needed)
+    logger.info(f"decode_image OK: shape={bgr.shape}, dtype={bgr.dtype}")
+    return bgr
 
 def encode_image(img: np.ndarray) -> str:
     _, buf = cv2.imencode('.jpg', img)

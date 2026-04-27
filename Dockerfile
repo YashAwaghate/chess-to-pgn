@@ -1,6 +1,6 @@
 FROM python:3.10-slim
 
-# System libs required by OpenCV and MediaPipe
+# System libs required by OpenCV (headless) and MediaPipe
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libgl1 \
         libglib2.0-0 \
@@ -13,18 +13,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install Python dependencies first (layer cache)
 # Install PyTorch CPU-only build first (smaller image, no CUDA)
 RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
+# Force-purge any cached opencv variants before installing requirements,
+# so the version pinned in requirements.txt is the one that ends up on PATH.
+RUN pip uninstall -y opencv-python opencv-python-headless opencv-contrib-python opencv-contrib-python-headless || true
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application source
+# Copy application source AND trained models
 COPY src/ ./src/
+COPY models/ ./models/
 
-# Create writable data/logs/models dirs (trained model can be mounted or downloaded at runtime)
-RUN mkdir -p data/sessions logs models
+# Writable runtime dirs
+RUN mkdir -p data/sessions logs
 
 EXPOSE 8000
 
