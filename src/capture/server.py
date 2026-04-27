@@ -686,7 +686,9 @@ def generate_pgn_endpoint(game_id: str):
             sys.path.insert(0, project_root)
         from src.pipeline.process_game import process_game_session
 
-        model_path = os.path.join(project_root, "models", "chess_piece_classifier.pth")
+        model_path = os.path.join(project_root, "models", "chess_piece_classifier_v2.pth")
+        if not os.path.exists(model_path):
+            model_path = os.path.join(project_root, "models", "chess_piece_classifier.pth")
         if not os.path.exists(model_path):
             return JSONResponse(status_code=400, content={
                 "message": "Model not found. Train the classifier first.",
@@ -820,7 +822,9 @@ def labeling_get_predictions(game_id: str, idx: str):
         if project_root not in sys.path:
             sys.path.insert(0, project_root)
 
-        model_path = os.path.join(project_root, "models", "chess_piece_classifier.pth")
+        model_path = os.path.join(project_root, "models", "chess_piece_classifier_v2.pth")
+        if not os.path.exists(model_path):
+            model_path = os.path.join(project_root, "models", "chess_piece_classifier.pth")
         if not os.path.exists(model_path):
             return JSONResponse(status_code=400, content={"message": "Model not trained yet"})
 
