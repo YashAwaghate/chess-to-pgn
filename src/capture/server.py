@@ -162,16 +162,33 @@ class GridCorrectionData(BaseModel):
 # ──────────────────────────── Helpers ────────────────────────────────────────
 
 def decode_image(b64: str) -> np.ndarray:
+    """Decode a base64-encoded image to BGR ndarray.
+
+    Tries PIL first (robust across OpenCV versions); falls back to cv2.imdecode.
+    """
     if not b64:
         raise ValueError("Empty image data received")
     if "," in b64:
         b64 = b64.split(",")[1]
-    buf = np.frombuffer(base64.b64decode(b64), np.uint8).copy()
-    if buf.size == 0:
+    raw = base64.b64decode(b64)
+    if not raw:
         raise ValueError("Decoded image buffer is empty")
+
+    # Primary path: PIL — sidesteps cv2.imdecode buffer-typing issues entirely.
+    try:
+        from PIL import Image
+        import io
+        pil_img = Image.open(io.BytesIO(raw)).convert("RGB")
+        rgb = np.array(pil_img, dtype=np.uint8)
+        return cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+    except Exception as pil_err:
+        logger.warning(f"PIL decode failed, falling back to cv2: {pil_err}")
+
+    # Fallback: cv2.imdecode
+    buf = np.frombuffer(raw, np.uint8).copy()
     img = cv2.imdecode(buf, cv2.IMREAD_COLOR)
     if img is None:
-        raise ValueError("cv2.imdecode failed — invalid or unsupported image format")
+        raise ValueError("Both PIL and cv2.imdecode failed")
     return img
 
 def encode_image(img: np.ndarray) -> str:
@@ -322,8 +339,9 @@ def calibrate(data: CalibrationData):
 
         return {"status": "success", "warped_b64": encode_image(warped), "grid": grid}
     except Exception as e:
-        logger.error(f"Calibration error: {e}")
-        return JSONResponse(status_code=500, content={"message": str(e)})
+        import traceback
+        logger.error(f"Calibration error: {e}\n{traceback.format_exc()}")
+        return JSONResponse(status_code=500, content={"message": str(e), "type": type(e).__name__})
 
 
 @app.post("/api/set_orientation")
