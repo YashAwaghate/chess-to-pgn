@@ -121,7 +121,7 @@ def load_session_from_s3(game_id: str, bucket: str = None) -> dict:
     for key in image_keys:
         resp = s3.get_object(Bucket=bucket, Key=key)
         data = resp['Body'].read()
-        arr = np.frombuffer(data, np.uint8)
+        arr = np.frombuffer(data, np.uint8).copy()
         img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
         if img is not None:
             images.append(img)
