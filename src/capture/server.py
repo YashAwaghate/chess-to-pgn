@@ -318,9 +318,10 @@ def calibrate(data: CalibrationData):
     if session.state != CaptureState.CALIBRATING:
         return JSONResponse(status_code=400, content={"message": "Not in CALIBRATING state"})
     try:
-        src   = np.array([[p['x'], p['y']] for p in data.points], dtype="float32")
-        dst   = np.array([[0,0],[400,0],[400,400],[0,400]], dtype="float32")
+        src   = np.ascontiguousarray([[p['x'], p['y']] for p in data.points], dtype=np.float32)
+        dst   = np.ascontiguousarray([[0,0],[400,0],[400,400],[0,400]], dtype=np.float32)
         frame = decode_image(data.image_b64)
+        logger.info(f"calibrate: src dtype={src.dtype}, shape={src.shape}, contig={src.flags['C_CONTIGUOUS']}")
 
         session.perspective_matrix = cv2.getPerspectiveTransform(src, dst)
         session.board_corners      = [[p['x'], p['y']] for p in data.points]
