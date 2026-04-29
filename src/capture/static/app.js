@@ -17,6 +17,7 @@ const overlayCanvas   = document.getElementById('overlay-canvas');
 const ctx             = overlayCanvas.getContext('2d');
 const btnCalibrate    = document.getElementById('btn-calibrate');
 const btnResetBox     = document.getElementById('btn-reset-box');
+const btnAutoCorners  = document.getElementById('btn-auto-corners');
 const calibControls   = document.getElementById('calibration-controls');
 
 const orientPanel     = document.getElementById('orientation-panel');
@@ -43,10 +44,13 @@ const infoTc         = document.getElementById('info-tc');
 const infoGameId     = document.getElementById('info-game-id');
 const infoMoves      = document.getElementById('info-moves');
 const infoRotation   = document.getElementById('info-rotation');
-const debugMask      = document.getElementById('debug-mask');
-const endGamePanel   = document.getElementById('end-game-panel');
-const resultDisplay  = document.getElementById('result-display');
-const btnReset       = document.getElementById('btn-reset');
+const debugMask          = document.getElementById('debug-mask');
+const endGamePanel       = document.getElementById('end-game-panel');
+const resultDisplay      = document.getElementById('result-display');
+const btnReset           = document.getElementById('btn-reset');
+const boardPreviewPanel  = document.getElementById('board-preview-panel');
+const boardPreviewImg    = document.getElementById('board-preview-img');
+const boardPreviewMove   = document.getElementById('board-preview-move');
 
 // ─── App state ────────────────────────────────────────────────────────────────
 let isCalibrated  = false;
@@ -364,6 +368,44 @@ overlayCanvas.addEventListener('touchcancel', stopDrag);
 btnResetBox.addEventListener('click', () => {
     cropBox = defaultCropBox();
     drawCropBox();
+});
+
+btnAutoCorners.addEventListener('click', async () => {
+    const frameB64 = getFrameBase64();
+    if (!frameB64) return;
+    const orig = btnAutoCorners.innerText;
+    btnAutoCorners.disabled  = true;
+    btnAutoCorners.innerText = 'Detecting…';
+    try {
+        const res  = await fetch('/api/detect_corners', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ image_b64: frameB64 }),
+        });
+        const data = await res.json();
+        if (data.status === 'success' && data.points && data.points.length === 4) {
+            // Server returns [TL, TR, BR, BL] in 400×400 warped space;
+            // we need to map back to canvas pixel space via the current video dims.
+            const vw = video.videoWidth  || overlayCanvas.width;
+            const vh = video.videoHeight || overlayCanvas.height;
+            // points come back as normalised 0-1 fractions of the original frame
+            cropBox = data.points.map(p => ({ x: p.x * vw, y: p.y * vh }));
+            drawCropBox();
+            btnAutoCorners.innerText = 'Auto-detect ✓';
+            setTimeout(() => {
+                btnAutoCorners.innerText = orig;
+                btnAutoCorners.disabled  = false;
+            }, 2000);
+        } else {
+            alert('Auto-detect failed: ' + (data.message || 'no corners found'));
+            btnAutoCorners.innerText = orig;
+            btnAutoCorners.disabled  = false;
+        }
+    } catch (e) {
+        console.error(e);
+        btnAutoCorners.innerText = orig;
+        btnAutoCorners.disabled  = false;
+    }
 });
 
 btnCalibrate.addEventListener('click', async () => {
@@ -708,34 +750,174 @@ btnRedoOrient.addEventListener('click', () => {
 });
 
 // ─── End game / result ────────────────────────────────────────────────────────
-const pgnScreen     = document.getElementById('pgn-screen');
-const pgnText       = document.getElementById('pgn-text');
-const pgnMeta       = document.getElementById('pgn-meta');
-const btnCopyPgn    = document.getElementById('btn-copy-pgn');
-const btnDownloadPgn= document.getElementById('btn-download-pgn');
-const btnNewSameCal = document.getElementById('btn-new-same-cal');
-const btnNewFreshCal= document.getElementById('btn-new-fresh-cal');
+const pgnScreen      = document.getElementById('pgn-screen');
+const pgnText        = document.getElementById('pgn-text');
+const pgnMeta        = document.getElementById('pgn-meta');
+const pgnBoard       = document.getElementById('pgn-board');
+const pgnMoveList    = document.getElementById('pgn-move-list');
+const pgnFenDisplay  = document.getElementById('pgn-fen-display');
+const pgnMoveLabel   = document.getElementById('pgn-move-label');
+const btnCopyPgn     = document.getElementById('btn-copy-pgn');
+const btnDownloadPgn = document.getElementById('btn-download-pgn');
+const btnNewSameCal  = document.getElementById('btn-new-same-cal');
+const btnNewFreshCal = document.getElementById('btn-new-fresh-cal');
+const btnGoStart     = document.getElementById('btn-go-start');
+const btnGoEnd       = document.getElementById('btn-go-end');
+const btnGoPrev      = document.getElementById('btn-go-prev');
+const btnGoNext      = document.getElementById('btn-go-next');
 
-let lastGameId = null;
+let lastGameId      = null;
+let pgnFenSequence  = [];   // one FEN per frame (index 0 = starting position)
+let pgnMoves        = [];   // list of SAN strings
+let pgnMoveTags     = [];   // 'sure'|'prior'|'failed' per move
+let pgnMoveConfs    = [];   // confidence float per move
+let currentMoveIdx  = -1;  // -1 = start position, 0..N-1 = after move N
+
+const PIECE_SYMBOLS = {
+    P:'♙', N:'♘', B:'♗', R:'♖', Q:'♕', K:'♔',
+    p:'♟', n:'♞', b:'♝', r:'♜', q:'♛', k:'♚',
+};
+
+function parseFen(fen) {
+    const board = [];
+    const rows = fen.split(' ')[0].split('/');
+    for (const row of rows) {
+        const cells = [];
+        for (const ch of row) {
+            if (ch >= '1' && ch <= '8') {
+                for (let i = 0; i < parseInt(ch); i++) cells.push('');
+            } else {
+                cells.push(ch);
+            }
+        }
+        board.push(cells);
+    }
+    return board;
+}
+
+function renderBoard(fen, highlightSqs) {
+    if (!pgnBoard) return;
+    pgnBoard.innerHTML = '';
+    const board = parseFen(fen || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+    const hl = new Set(highlightSqs || []);
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const cell = document.createElement('div');
+            const isLight = (r + c) % 2 === 0;
+            cell.className = 'board-cell ' + (isLight ? 'light' : 'dark');
+            const piece = board[r] && board[r][c];
+            if (piece) cell.textContent = PIECE_SYMBOLS[piece] || '';
+            // Highlight squares by algebraic name (e.g. "e4")
+            const file = String.fromCharCode(97 + c);
+            const rank = 8 - r;
+            if (hl.has(file + rank)) cell.classList.add('highlight');
+            pgnBoard.appendChild(cell);
+        }
+    }
+    if (pgnFenDisplay) pgnFenDisplay.value = fen || '';
+}
+
+function renderMoveList(moves, tags, confs) {
+    if (!pgnMoveList) return;
+    pgnMoveList.innerHTML = '';
+    for (let i = 0; i < moves.length; i++) {
+        const isWhite = i % 2 === 0;
+        const item = document.createElement('div');
+        item.className = 'move-item';
+        item.dataset.idx = i;
+
+        const num = document.createElement('span');
+        num.className = 'move-num';
+        if (isWhite) num.textContent = Math.floor(i / 2 + 1) + '.';
+        item.appendChild(num);
+
+        const san = document.createElement('span');
+        san.className = 'move-san';
+        san.textContent = moves[i] || '?';
+        item.appendChild(san);
+
+        const tag = (tags && tags[i]) || 'sure';
+        const conf = confs && confs[i] != null ? confs[i] : null;
+        const badge = document.createElement('span');
+        badge.className = `conf-badge ${tag}`;
+        badge.textContent = tag === 'sure' ? '✓' : tag === 'prior' ? '~' : '✗';
+        if (conf !== null) badge.title = `${Math.round(conf * 100)}% conf`;
+        item.appendChild(badge);
+
+        item.addEventListener('click', () => gotoMove(i));
+        pgnMoveList.appendChild(item);
+    }
+}
+
+function gotoMove(idx) {
+    currentMoveIdx = idx;
+    // Use the FEN sequence: index 0 = before any moves, move i produces fen at i+1
+    const fenIdx = idx + 1;
+    const fen = pgnFenSequence[fenIdx] || pgnFenSequence[pgnFenSequence.length - 1] || '';
+    renderBoard(fen);
+
+    const moveNum = Math.floor(idx / 2) + 1;
+    const color   = idx % 2 === 0 ? 'W' : 'B';
+    pgnMoveLabel.textContent = `Move ${moveNum}${color}`;
+
+    // Highlight active item in move list
+    pgnMoveList.querySelectorAll('.move-item').forEach(el => {
+        el.classList.toggle('active', parseInt(el.dataset.idx) === idx);
+    });
+    // Scroll active move into view
+    const activeEl = pgnMoveList.querySelector('.move-item.active');
+    if (activeEl) activeEl.scrollIntoView({ block: 'nearest' });
+}
+
+function gotoStart() {
+    currentMoveIdx = -1;
+    const fen = pgnFenSequence[0] || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+    renderBoard(fen);
+    pgnMoveLabel.textContent = 'Start';
+    pgnMoveList.querySelectorAll('.move-item').forEach(el => el.classList.remove('active'));
+}
 
 async function showPgnScreen(result) {
     pgnScreen.style.display = 'flex';
-    pgnText.value = 'Generating PGN…';
+    pgnText.value     = 'Generating PGN…';
     pgnMeta.innerHTML = '';
+    pgnBoard.innerHTML   = '';
+    pgnMoveList.innerHTML = '';
+    pgnFenSequence = [];
+    pgnMoves       = [];
+    pgnMoveTags    = [];
+    pgnMoveConfs   = [];
+    currentMoveIdx = -1;
+
     try {
-        const stateRes = await fetch('/api/state');
+        const stateRes  = await fetch('/api/state');
         const stateData = await stateRes.json();
         lastGameId = stateData.game_id;
 
-        const res = await fetch(`/api/generate_pgn/${lastGameId}`, { method: 'POST' });
+        const res  = await fetch(`/api/generate_pgn/${lastGameId}`, { method: 'POST' });
         const data = await res.json();
         if (res.ok) {
             pgnText.value = data.pgn || '(empty)';
+
+            // Store enriched data
+            pgnMoves      = data.moves       || [];
+            pgnMoveTags   = data.move_tags   || [];
+            pgnMoveConfs  = data.move_confidences || [];
+            pgnFenSequence = data.fen_sequence || [];
+
             const errCount = (data.errors || []).length;
+            const conf     = data.overall_confidence != null
+                ? ` · conf <strong>${Math.round(data.overall_confidence * 100)}%</strong>` : '';
             pgnMeta.innerHTML =
                 `<strong>${lastGameId}</strong> · Result: <strong>${result}</strong> · ` +
-                `${(data.moves || []).length} moves detected` +
+                `${pgnMoves.length} moves` + conf +
                 (errCount ? ` · <span style="color:var(--danger);">${errCount} errors</span>` : '');
+
+            // Render board at starting position
+            const startFen = pgnFenSequence[0] || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+            renderBoard(startFen);
+            pgnMoveLabel.textContent = 'Start';
+            renderMoveList(pgnMoves, pgnMoveTags, pgnMoveConfs);
         } else {
             pgnText.value = `Error: ${data.message || 'PGN generation failed'}`;
         }
@@ -743,6 +925,28 @@ async function showPgnScreen(result) {
         pgnText.value = `Error: ${e.message}`;
     }
 }
+
+// Navigation buttons
+btnGoStart.addEventListener('click', gotoStart);
+btnGoEnd.addEventListener('click', () => {
+    if (pgnMoves.length > 0) gotoMove(pgnMoves.length - 1);
+});
+btnGoPrev.addEventListener('click', () => {
+    if (currentMoveIdx > 0) gotoMove(currentMoveIdx - 1);
+    else gotoStart();
+});
+btnGoNext.addEventListener('click', () => {
+    if (currentMoveIdx < pgnMoves.length - 1) gotoMove(currentMoveIdx + 1);
+});
+
+// Keyboard navigation (arrow keys when PGN screen is visible)
+document.addEventListener('keydown', e => {
+    if (pgnScreen.style.display === 'none') return;
+    if (e.key === 'ArrowLeft')  { e.preventDefault(); btnGoPrev.click(); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); btnGoNext.click(); }
+    if (e.key === 'Home')       { e.preventDefault(); gotoStart(); }
+    if (e.key === 'End')        { e.preventDefault(); btnGoEnd.click(); }
+});
 
 document.querySelectorAll('.result-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -870,6 +1074,11 @@ function startSessionLoop() {
             const data = await res.json();
             if (data.state)    updateStatusBadge(data.state);
             if (data.mask_b64) debugMask.src = data.mask_b64;
+            if (data.board_thumb_b64) {
+                boardPreviewImg.src = data.board_thumb_b64;
+                boardPreviewMove.innerText = `Move ${data.move_number != null ? data.move_number - 1 : '?'}`;
+                boardPreviewPanel.style.display = '';
+            }
             if (Math.random() < 0.2) fetchState();
         } catch (e) { console.error('Frame drop:', e); }
     }, 200);
@@ -889,9 +1098,10 @@ btnReset.addEventListener('click', async () => {
     }
     gamePanel.style.display     = 'none';
     setupPanel.style.display    = '';
-    endGamePanel.style.display  = 'none';
-    resultDisplay.style.display = 'none';
-    pgnScreen.style.display     = 'none';
+    endGamePanel.style.display     = 'none';
+    resultDisplay.style.display    = 'none';
+    pgnScreen.style.display        = 'none';
+    boardPreviewPanel.style.display = 'none';
     document.querySelectorAll('.result-btn').forEach(b => b.disabled = false);
     btnCalibrate.disabled  = false;
     btnCalibrate.innerText = 'Calibrate';

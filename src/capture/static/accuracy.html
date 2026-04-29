@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess PGN — Accuracy</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        .acc-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1rem;
+        }
+        .metric-card {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            padding: 1.25rem 1.5rem;
+        }
+        .metric-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: white;
+            margin: 0.2rem 0 0.1rem;
+            line-height: 1.1;
+        }
+        .metric-delta {
+            font-size: 0.8rem;
+            color: #3fb950;
+        }
+        .metric-delta.neg { color: var(--danger); }
+        .acc-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+        .acc-table th {
+            text-align: left;
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 0.78rem;
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .acc-table td {
+            padding: 0.45rem 0.75rem;
+            border-bottom: 1px solid rgba(48,54,61,0.4);
+            color: var(--text-main);
+        }
+        .acc-table tr:last-child td { border-bottom: none; }
+        .acc-table .hl { font-weight: 700; color: #58a6ff; }
+        .bar-row { display: flex; align-items: center; gap: 0.75rem; }
+        .bar-track {
+            flex: 1;
+            height: 8px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.8s ease;
+        }
+        .bar-label { font-size: 0.82rem; min-width: 3.5rem; text-align: right; color: var(--text-main); }
+
+        /* Session analysis */
+        .session-row { display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap; }
+        #session-result { margin-top: 0.75rem; }
+        .frame-strip {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3px;
+            margin-top: 0.5rem;
+        }
+        .frame-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+            background: var(--success);
+            title: '';
+        }
+        .frame-dot.low { background: var(--danger); }
+        .frame-dot.mid { background: var(--moving); }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <header>
+        <div class="header-content">
+            <h1>♟ Chess Capture — Accuracy</h1>
+            <div class="header-links">
+                <a href="/" class="btn secondary small">Capture</a>
+                <a href="/viewer.html" class="btn secondary small">Gallery</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- ── Hero metrics ────────────────────────────────────────────────────── -->
+    <div class="acc-grid" id="hero-metrics">
+        <div class="metric-card">
+            <div class="metric-label">Per-Square Accuracy</div>
+            <div class="metric-value">97.83%</div>
+            <div class="metric-delta">+3.14 pp vs SOTA (94.69%)</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Exact Boards</div>
+            <div class="metric-value">51.72%</div>
+            <div class="metric-delta">+36.5 pp vs SOTA (15.26%)</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Bayesian Move Detection</div>
+            <div class="metric-value">87.9%</div>
+            <div class="metric-delta">100% recall · 4,281 moves · 40 games</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Corner Localisation Error</div>
+            <div class="metric-value">2–10 px</div>
+            <div class="metric-delta">In 3072 px original image space</div>
+        </div>
+    </div>
+
+    <!-- ── Decoder comparison ──────────────────────────────────────────────── -->
+    <div class="panel">
+        <h2>Move Decoder Comparison</h2>
+        <div style="display:flex; flex-direction:column; gap:0.75rem; margin-top:0.75rem;">
+            <div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:0.3rem;">
+                    <span style="font-size:0.85rem;">Bayesian (ours) — 100% recall</span>
+                    <span style="font-size:0.85rem; color:#3fb950; font-weight:600;">87.9%</span>
+                </div>
+                <div class="bar-track"><div class="bar-fill" style="width:87.9%; background:#2ea043;"></div></div>
+            </div>
+            <div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:0.3rem;">
+                    <span style="font-size:0.85rem;">Feedback correction (baseline)</span>
+                    <span style="font-size:0.85rem; color:var(--moving); font-weight:600;">60.7%</span>
+                </div>
+                <div class="bar-track"><div class="bar-fill" style="width:60.7%; background:#d29922;"></div></div>
+            </div>
+            <div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:0.3rem;">
+                    <span style="font-size:0.85rem;">Temporal tracker (experimental)</span>
+                    <span style="font-size:0.85rem; color:var(--danger); font-weight:600;">30.2%</span>
+                </div>
+                <div class="bar-track"><div class="bar-fill" style="width:30.2%; background:#da3633;"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Piece classifier vs SOTA ────────────────────────────────────────── -->
+    <div class="panel">
+        <h2>Piece Classifier vs SOTA</h2>
+        <table class="acc-table" style="margin-top:0.75rem;">
+            <thead>
+                <tr>
+                    <th>Metric</th>
+                    <th>Masouris et al. 2023 (SOTA)</th>
+                    <th class="hl">Ours</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>Per-square accuracy</td><td>94.69%</td><td class="hl">97.83%</td></tr>
+                <tr><td>Boards exactly correct</td><td>15.26%</td><td class="hl">51.72%</td></tr>
+                <tr><td>Frames ≥ 90% accuracy</td><td>—</td><td class="hl">96.02%</td></tr>
+                <tr><td>Frames evaluated</td><td>306</td><td class="hl">4,321</td></tr>
+                <tr><td>Games evaluated</td><td>3</td><td class="hl">40</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- ── Corner detector ablation ────────────────────────────────────────── -->
+    <div class="panel">
+        <h2>Corner Quality → Downstream Accuracy (Game 62)</h2>
+        <table class="acc-table" style="margin-top:0.75rem;">
+            <thead>
+                <tr>
+                    <th>Corner source</th>
+                    <th>Per-sq accuracy</th>
+                    <th>Bayesian move det.</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>Per-game manual (1 homography)</td><td>~44%</td><td>~0%</td></tr>
+                <tr><td>Per-frame manual (hand-clicked)</td><td>~84%</td><td>~59%</td></tr>
+                <tr><td class="hl">ML corner detector (ours)</td><td class="hl">98.8%</td><td class="hl">100%</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- ── Live session analysis ───────────────────────────────────────────── -->
+    <div class="panel">
+        <h2>Live Session Analysis</h2>
+        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:0.75rem;">
+            Run per-frame classifier accuracy on a session that has ground-truth labels.
+        </p>
+        <div class="session-row">
+            <div class="form-group" style="flex:1; min-width:200px;">
+                <label for="inp-session-id">Session ID</label>
+                <input type="text" id="inp-session-id" placeholder="e.g. SESSION_001" autocomplete="off" />
+            </div>
+            <button id="btn-run-analysis" class="btn primary" style="flex-shrink:0;">Run Analysis</button>
+        </div>
+        <div id="session-result" style="display:none;"></div>
+    </div>
+
+</div>
+<script>
+document.getElementById('btn-run-analysis').addEventListener('click', async () => {
+    const gameId = document.getElementById('inp-session-id').value.trim();
+    if (!gameId) return;
+    const btn = document.getElementById('btn-run-analysis');
+    btn.disabled  = true;
+    btn.innerText = 'Running…';
+    const out = document.getElementById('session-result');
+    out.style.display = '';
+    out.innerHTML = '<p style="color:var(--text-muted);">Analysing…</p>';
+    try {
+        const res  = await fetch(`/api/eval/session/${encodeURIComponent(gameId)}`);
+        const data = await res.json();
+        if (!res.ok) {
+            out.innerHTML = `<p style="color:var(--danger);">${data.message || 'Error'}</p>`;
+        } else {
+            const pct = (data.per_square_accuracy * 100).toFixed(2);
+            const exact = (data.exact_boards_pct * 100).toFixed(1);
+            out.innerHTML = `
+                <div style="display:flex; gap:1.5rem; flex-wrap:wrap; margin-bottom:0.75rem;">
+                    <div><div class="metric-label">Per-square</div><div class="metric-value" style="font-size:1.5rem;">${pct}%</div></div>
+                    <div><div class="metric-label">Exact boards</div><div class="metric-value" style="font-size:1.5rem;">${exact}%</div></div>
+                    <div><div class="metric-label">Frames</div><div class="metric-value" style="font-size:1.5rem;">${data.frames_evaluated}</div></div>
+                </div>
+                <p style="font-size:0.8rem; color:var(--text-muted);">Frame confidence (green ≥ 90%, yellow ≥ 70%, red &lt; 70%):</p>
+                <div class="frame-strip">${(data.per_frame || []).map(f => {
+                    const cls = f.avg_confidence >= 0.9 ? '' : f.avg_confidence >= 0.7 ? 'mid' : 'low';
+                    return `<div class="frame-dot ${cls}" title="Frame ${f.frame}: ${(f.avg_confidence*100).toFixed(0)}%"></div>`;
+                }).join('')}</div>`;
+        }
+    } catch (e) {
+        out.innerHTML = `<p style="color:var(--danger);">Error: ${e.message}</p>`;
+    } finally {
+        btn.disabled  = false;
+        btn.innerText = 'Run Analysis';
+    }
+});
+</script>
+</body>
+</html>

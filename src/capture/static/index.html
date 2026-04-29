@@ -16,6 +16,10 @@
         <header>
             <div class="header-content">
                 <h1>♟ Chess Capture</h1>
+                <div class="header-links">
+                    <a href="/accuracy.html" class="btn secondary small">Accuracy</a>
+                    <a href="/viewer.html"   class="btn secondary small">Gallery</a>
+                </div>
                 <div class="status-badge" id="app-status">SETUP</div>
             </div>
         </header>
@@ -58,6 +62,7 @@
                     <canvas id="overlay-canvas"></canvas>
                     <div class="cam-bar" id="calibration-controls">
                         <span class="cam-hint">Drag corners to frame the board</span>
+                        <button id="btn-auto-corners" class="btn secondary">Auto-detect</button>
                         <button id="btn-calibrate" class="btn primary">Calibrate</button>
                         <button id="btn-reset-box" class="btn secondary">Reset Box</button>
                     </div>
@@ -135,6 +140,15 @@
                     <button id="btn-reset" class="btn danger full-width">Reset Session</button>
                 </div>
 
+                <!-- Last captured board preview (shown after first move) -->
+                <div class="panel" id="board-preview-panel" style="display:none;">
+                    <h2>Last Capture</h2>
+                    <div class="board-preview-container">
+                        <img id="board-preview-img" alt="Last captured board" />
+                        <div class="board-preview-badge" id="board-preview-move">Move 0</div>
+                    </div>
+                </div>
+
                 <div class="panel">
                     <h2>Motion Debug</h2>
                     <div class="mask-container">
@@ -147,17 +161,37 @@
 
         <!-- ── PGN Screen (shown after result is recorded) ─────────────── -->
         <div id="pgn-screen" class="pgn-screen" style="display:none;">
-            <div class="pgn-card">
-                <h2>Game Saved</h2>
-                <div class="pgn-meta" id="pgn-meta"></div>
-                <textarea id="pgn-text" readonly></textarea>
-                <div class="pgn-actions">
-                    <button id="btn-copy-pgn"     class="btn primary">Copy PGN</button>
-                    <button id="btn-download-pgn" class="btn secondary">Download .pgn</button>
+            <div class="pgn-card pgn-card--wide">
+                <div class="pgn-header">
+                    <h2>Game Saved</h2>
+                    <div class="pgn-meta" id="pgn-meta"></div>
+                </div>
+                <div class="pgn-layout">
+                    <!-- Left: board viewer + navigation -->
+                    <div class="pgn-left">
+                        <div id="pgn-board" class="board-viewer"></div>
+                        <div class="board-nav">
+                            <button id="btn-go-start" class="btn secondary small">|&#8249;</button>
+                            <button id="btn-go-prev"  class="btn secondary small">&#8249;</button>
+                            <span   id="pgn-move-label" class="board-nav-label">Start</span>
+                            <button id="btn-go-next"  class="btn secondary small">&#8250;</button>
+                            <button id="btn-go-end"   class="btn secondary small">&#8250;|</button>
+                        </div>
+                        <input id="pgn-fen-display" class="fen-display" readonly />
+                    </div>
+                    <!-- Right: move list + PGN textarea -->
+                    <div class="pgn-right">
+                        <div id="pgn-move-list" class="move-list"></div>
+                        <textarea id="pgn-text" readonly></textarea>
+                        <div class="pgn-actions">
+                            <button id="btn-copy-pgn"     class="btn primary">Copy PGN</button>
+                            <button id="btn-download-pgn" class="btn secondary">Download .pgn</button>
+                        </div>
+                    </div>
                 </div>
                 <div class="pgn-divider"></div>
                 <div class="pgn-next">
-                    <button id="btn-new-same-cal" class="btn primary full-width">New Game (Same Calibration)</button>
+                    <button id="btn-new-same-cal"  class="btn primary full-width">New Game (Same Calibration)</button>
                     <button id="btn-new-fresh-cal" class="btn secondary full-width">New Game (New Calibration)</button>
                 </div>
             </div>

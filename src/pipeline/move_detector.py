@@ -1,6 +1,10 @@
 """
 Detect chess moves by diffing consecutive FEN positions and validating
 against legal moves using python-chess.
+
+Production decoder : detect_moves_sequence_with_prior (Bayesian, 87.9% on 40-game eval)
+Naive baseline     : detect_moves_sequence_with_feedback (60.7%)
+Experimental only  : TemporalBoardTracker (30.2% -- do NOT use in production)
 """
 
 import math
@@ -606,6 +610,12 @@ def detect_moves_sequence_with_feedback(
 
 # ---------------------------------------------------------------------------
 # Temporal board tracker
+# ── Experimental / Evaluation Only ─────────────────────────────────────────
+# TemporalBoardTracker scores 30.2% on the 40-game eval (vs 87.9% Bayesian).
+# Root cause: exact argmax-FEN confirmation is too strict (~50% of frames have
+# >=2 wrong squares), so the confirmed-state condition almost never triggers.
+# Keep for eval scripts (scripts/eval_temporal_tracker.py) — do NOT import in
+# production code (server.py, process_game.py).
 # ---------------------------------------------------------------------------
 
 class TemporalBoardTracker:

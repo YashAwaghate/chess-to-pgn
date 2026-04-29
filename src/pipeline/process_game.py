@@ -16,10 +16,12 @@ import argparse
 import cv2
 import numpy as np
 
+FEN_CLASSES = ['empty','P','N','B','R','Q','K','p','n','b','r','q','k']
+
 from src.preprocessing.process_board import crop_squares_from_grid
 from src.models.inference import ChessPieceClassifier, PretrainedBoardClassifier
 from src.pipeline.fen_generator import predictions_to_fen, fen_position_only
-from src.pipeline.move_detector import detect_moves_sequence
+from src.pipeline.move_detector import detect_moves_sequence, detect_moves_sequence_with_prior
 from src.pipeline.pgn_generator import generate_pgn, save_pgn
 
 
@@ -189,49 +191,85 @@ def process_game_session(game_id: str = None, local_dir: str = None,
         clf = ChessPieceClassifier(model_path=model_path)
         print(f"Loaded patch classifier from {model_path}")
 
-    # 4. Process each image → FEN
+    # 4. Process each image → full softmax per square (Bayesian decoder needs this)
+    frames_full_probs = []
     fen_sequence = []
     all_confidences = []
     print(f"Processing {len(images)} board images...")
 
     for i, img in enumerate(images):
         patches = crop_squares_from_grid(img, grid, rotation)
-        predictions = clf.predict_board(patches)
-        fen = predictions_to_fen(predictions, move_number=i + 1)
+
+        if hasattr(clf, 'predict_board_full_probs'):
+            probs = clf.predict_board_full_probs(patches)
+        else:
+            # Pretrained classifier fallback: build one-hot-ish prob vectors
+            predictions = clf.predict_board(patches)
+            probs = {}
+            for sq, (piece, conf) in predictions.items():
+                vec = np.zeros(13, dtype=np.float32)
+                idx = FEN_CLASSES.index(piece) if piece in FEN_CLASSES else 0
+                vec[idx] = conf
+                probs[sq] = vec
+
+        frames_full_probs.append(probs)
+
+        # Derive argmax FEN for display / fen_sequence
+        argmax_preds = {sq: (FEN_CLASSES[int(np.argmax(p))], float(np.max(p))) for sq, p in probs.items()}
+        fen = predictions_to_fen(argmax_preds, move_number=i + 1)
         fen_pos = fen_position_only(fen)
         fen_sequence.append(fen_pos)
 
-        confs = [c for _, c in predictions.values()]
+        confs = [float(np.max(p)) for p in probs.values()]
         avg_conf = sum(confs) / len(confs) if confs else 0.0
-        low_conf = [sq for sq, (_, c) in predictions.items() if c < 0.5]
-        all_confidences.append(avg_conf)
+        low_conf = [sq for sq, p in probs.items() if float(np.max(p)) < 0.5]
+        all_confidences.append({'avg': avg_conf, 'low_squares': low_conf})
 
         if i % 10 == 0 or low_conf:
             low_str = f" LOW:{','.join(low_conf)}" if low_conf else ""
             print(f"  Image {i:3d}: avg_conf={avg_conf:.3f}{low_str} | {fen_pos[:25]}...")
 
-    overall_avg = sum(all_confidences) / len(all_confidences) if all_confidences else 0.0
+    overall_avg = sum(c['avg'] for c in all_confidences) / len(all_confidences) if all_confidences else 0.0
     print(f"Classifier confidence: avg={overall_avg:.3f} over {len(images)} images")
 
-    # 5. Detect moves from FEN sequence
-    print(f"Detecting moves (fuzzy_threshold={fuzzy_threshold})...")
-    move_result = detect_moves_sequence(fen_sequence, fuzzy_threshold=fuzzy_threshold)
+    # 5. Detect moves using Bayesian prior (production decoder, 87.9% on 40-game eval)
+    print("Detecting moves (Bayesian decoder)...")
+    move_result = detect_moves_sequence_with_prior(frames_full_probs)
 
-    moves = move_result['moves']
-    errors = move_result['errors']
-    skipped = move_result['skipped']
+    moves     = move_result['moves']
+    move_tags = move_result['move_tags']
+    errors    = move_result['errors']
+    skipped   = move_result['skipped']
 
-    print(f"  Detected {len(moves)} moves, {len(errors)} errors, {skipped} identical frames skipped")
+    # Build per-move confidence: avg confidence of the frame that produced each move
+    move_frame_indices = []
+    frame_idx = 0
+    prev_pos  = fen_sequence[0] if fen_sequence else ''
+    for j in range(1, len(fen_sequence)):
+        if fen_sequence[j] != prev_pos:
+            move_frame_indices.append(j)
+            prev_pos = fen_sequence[j]
+    move_confidences = [
+        round(all_confidences[idx]['avg'], 3) if idx < len(all_confidences) else 0.0
+        for idx in move_frame_indices[:len(moves)]
+    ]
+
+    print(f"  Detected {len(moves)} moves ({move_tags.count('sure')} sure, "
+          f"{move_tags.count('prior')} prior, {len(errors)} errors, {skipped} skipped)")
 
     # 6. Generate PGN
-    pgn = generate_pgn(moves, game_info, result)
+    pgn = generate_pgn(moves, game_info, result, move_tags=move_tags)
 
     return {
-        'pgn': pgn,
-        'moves': moves,
-        'fen_sequence': fen_sequence,
-        'errors': errors,
-        'skipped': skipped,
+        'pgn':                pgn,
+        'moves':              moves,
+        'move_tags':          move_tags,
+        'move_confidences':   move_confidences,
+        'fen_sequence':       fen_sequence,
+        'errors':             errors,
+        'skipped':            skipped,
+        'overall_confidence': round(overall_avg, 3),
+        'decoder':            'bayesian',
     }
 
 

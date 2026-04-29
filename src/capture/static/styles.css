@@ -51,6 +51,13 @@ header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 0.75rem;
+}
+
+.header-links {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
 }
 
 h1 {
@@ -229,6 +236,7 @@ main {
 .btn.danger:hover         { background: rgba(218, 54, 51, 0.1); }
 
 .btn.large                { padding: 0.75rem 2rem; font-size: 1rem; border-radius: 8px; min-height: 48px; }
+.btn.small                { padding: 0.3rem 0.65rem; font-size: 0.8rem; min-height: 30px; }
 .full-width               { width: 100%; }
 
 /* ── Setup panel ──────────────────────────────────────────── */
@@ -551,5 +559,192 @@ main.cal-fullscreen .video-container {
 
     .result-buttons {
         grid-template-columns: 1fr;
+    }
+}
+
+/* ── Board preview (sidebar during capture) ───────────────── */
+.board-preview-container {
+    position: relative;
+}
+
+.board-preview-container img {
+    width: 100%;
+    border-radius: 6px;
+    display: block;
+}
+
+.board-preview-badge {
+    position: absolute;
+    bottom: 6px;
+    right: 6px;
+    background: rgba(13, 17, 23, 0.85);
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.2rem 0.5rem;
+    border-radius: 8px;
+}
+
+/* ── PGN result screen — wide card + two-column layout ─────── */
+.pgn-card--wide {
+    max-width: 920px;
+}
+
+.pgn-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.75rem;
+}
+
+.pgn-header h2 {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.pgn-layout {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 1.25rem;
+    align-items: start;
+}
+
+.pgn-left {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.board-viewer {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(8, 1fr);
+    width: 288px;
+    height: 288px;
+    border: 2px solid var(--border-color);
+    border-radius: 4px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.board-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+    line-height: 1;
+    cursor: default;
+    user-select: none;
+    transition: outline 0.1s;
+}
+
+.board-cell.light     { background: #f0d9b5; color: #1a1a1a; }
+.board-cell.dark      { background: #b58863; color: #1a1a1a; }
+.board-cell.highlight { outline: 3px solid rgba(255, 215, 0, 0.85); outline-offset: -3px; }
+
+.board-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.board-nav-label {
+    flex: 1;
+    text-align: center;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.fen-display {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 0.3rem 0.45rem;
+    color: var(--text-muted);
+    font-family: 'Consolas', 'Menlo', monospace;
+    font-size: 0.68rem;
+    outline: none;
+    cursor: text;
+}
+
+.pgn-right {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    min-width: 0;
+}
+
+.move-list {
+    height: 220px;
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.45rem 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+.move-item {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+    font-size: 0.83rem;
+    padding: 0.2rem 0.35rem;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.move-item:hover  { background: rgba(255, 255, 255, 0.07); }
+.move-item.active { background: rgba(88, 166, 255, 0.18);  }
+
+.move-num {
+    color: var(--text-muted);
+    min-width: 2rem;
+    font-size: 0.78rem;
+    flex-shrink: 0;
+}
+
+.move-san {
+    flex: 1;
+    font-family: 'Consolas', 'Menlo', monospace;
+    color: var(--text-main);
+}
+
+.conf-badge {
+    font-size: 0.66rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 10px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.conf-badge.sure   { background: rgba(46, 160, 67, 0.25);  color: #3fb950; }
+.conf-badge.prior  { background: rgba(210, 153, 34, 0.25); color: #d29922; }
+.conf-badge.failed { background: rgba(218, 54, 51, 0.25);  color: #f85149; }
+
+/* ── PGN layout responsive collapse ──────────────────────── */
+@media (max-width: 700px) {
+    .pgn-card--wide {
+        max-width: 100%;
+    }
+
+    .pgn-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .board-viewer {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 1;
+    }
+
+    .move-list {
+        height: 160px;
     }
 }

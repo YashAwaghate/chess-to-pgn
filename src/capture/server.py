@@ -99,14 +99,20 @@ class SessionState:
         self.board_grid         = None  # {'x_lines': [...], 'y_lines': [...]}
         self.hand_exit_time     = None
         self.cooldown_duration  = 0.5
-        self.save_raw: bool     = False
+        self.save_raw: bool          = False
         self.game_info: dict         = {}   # populated by /api/setup
         self.last_activity_time      = time.time()
+        self.last_board_thumb: Optional[np.ndarray] = None
 
 
 session = SessionState()
 
 ACTIVITY_TIMEOUT = 60  # seconds — auto-reset if no activity in calibration/orientation
+
+# ── Singletons (lazy-loaded) ──────────────────────────────────────────────────
+_corner_detector_model  = None
+_corner_detector_device = 'cpu'
+_analysis_cache: dict   = {}   # game_id -> enriched analysis result
 
 log_dir = os.path.join(project_root, "logs")
 os.makedirs(log_dir, exist_ok=True)
@@ -157,6 +163,9 @@ class ResultData(BaseModel):
 class GridCorrectionData(BaseModel):
     x_lines: list[int]  # 9 values
     y_lines: list[int]  # 9 values
+
+class AutoCornersRequest(BaseModel):
+    image_b64: str
 
 
 # ──────────────────────────── Helpers ────────────────────────────────────────
@@ -425,6 +434,7 @@ def end_game(data: ResultData):
 
 @app.post("/api/reset")
 def reset_session():
+    _analysis_cache.clear()
     session.reset()
     return {"status": "success"}
 
@@ -512,12 +522,18 @@ def process_frame(data: FrameData):
                 warped  = cv2.warpPerspective(frame, session.perspective_matrix, (BOARD_SIZE, BOARD_SIZE))
                 rotated = apply_rotation(warped, session.rotation_code)
                 save_and_upload(rotated, raw_frame=frame)
+                session.last_board_thumb = rotated.copy()
 
-    return {
-        "state":     session.state.value,
-        "is_moving": session.state == CaptureState.MOVING,
-        "mask_b64":  encode_image(hand_result.annotated_frame),
+    response = {
+        "state":       session.state.value,
+        "is_moving":   session.state == CaptureState.MOVING,
+        "move_number": session.move_number,
+        "mask_b64":    encode_image(hand_result.annotated_frame),
     }
+    if session.last_board_thumb is not None:
+        response["board_thumb_b64"] = encode_image(session.last_board_thumb)
+        session.last_board_thumb = None   # consume once per capture
+    return response
 
 
 def _s3_put(s3_key: str, data: bytes, content_type: str = "image/jpeg") -> bool:
@@ -690,6 +706,53 @@ def gallery_get_image(session_id: str, filename: str):
     return JSONResponse(status_code=404, content={"message": "Image not found"})
 
 
+# ──────────────────────────── Corner Detection API ───────────────────────────
+
+@app.post("/api/detect_corners")
+def detect_corners_endpoint(data: AutoCornersRequest):
+    """Run the trained ML corner detector on the provided camera frame.
+
+    Returns 4 board corner points (TL, TR, BR, BL) in original image pixel
+    space — same coordinate system expected by /api/calibrate.
+    """
+    global _corner_detector_model, _corner_detector_device
+    try:
+        model_path = os.path.join(project_root, "models", "corner_detector.pth")
+        if not os.path.exists(model_path):
+            return JSONResponse(status_code=400,
+                content={"message": "corner_detector.pth not found. Train the corner detector first."})
+
+        frame = decode_image(data.image_b64)
+
+        if _corner_detector_model is None:
+            import torch
+            if project_root not in sys.path:
+                sys.path.insert(0, project_root)
+            from src.models.corner_detector import CornerDetector
+            _corner_detector_device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            ckpt = torch.load(model_path, map_location=_corner_detector_device, weights_only=False)
+            _corner_detector_model = CornerDetector(pretrained=False).to(_corner_detector_device)
+            _corner_detector_model.load_state_dict(ckpt['model_state_dict'])
+            _corner_detector_model.eval()
+            logger.info(f"Corner detector loaded (epoch {ckpt.get('epoch','?')}, device={_corner_detector_device})")
+
+        from src.models.corner_detector import predict_corners
+        corners = predict_corners(_corner_detector_model, frame, device=_corner_detector_device)
+        # corners = {top_left:[x,y], top_right:[x,y], bottom_right:[x,y], bottom_left:[x,y]}
+
+        points = [
+            {"x": corners["top_left"][0],     "y": corners["top_left"][1]},
+            {"x": corners["top_right"][0],    "y": corners["top_right"][1]},
+            {"x": corners["bottom_right"][0], "y": corners["bottom_right"][1]},
+            {"x": corners["bottom_left"][0],  "y": corners["bottom_left"][1]},
+        ]
+        logger.info(f"Corner detection: TL={points[0]}, TR={points[1]}, BR={points[2]}, BL={points[3]}")
+        return {"status": "success", "points": points}
+    except Exception as e:
+        logger.exception("Corner detection failed")
+        return JSONResponse(status_code=500, content={"message": str(e)})
+
+
 # ──────────────────────────── PGN Generation API ─────────────────────────────
 
 @app.post("/api/generate_pgn/{game_id}")
@@ -731,18 +794,40 @@ def generate_pgn_endpoint(game_id: str):
             _s3_client.put_object(Bucket=S3_BUCKET, Key=pgn_key,
                                   Body=pgn_str.encode(), ContentType="text/plain")
 
-        return {
-            "pgn": pgn_str,
-            "moves": result['moves'],
-            "total_images": len(result['fen_sequence']),
-            "errors": result['errors'],
-            "skipped": result['skipped'],
+        # Build per-move confidence list aligned to moves
+        move_tags        = result.get('move_tags', [])
+        move_confidences = result.get('move_confidences', [])
+        fen_sequence     = result.get('fen_sequence', [])
+
+        enriched = {
+            "pgn":                pgn_str,
+            "moves":              result['moves'],
+            "move_tags":          move_tags,
+            "move_confidences":   move_confidences,
+            "fen_sequence":       fen_sequence,
+            "total_images":       len(fen_sequence),
+            "errors":             result['errors'],
+            "skipped":            result['skipped'],
+            "overall_confidence": result.get('overall_confidence'),
+            "decoder":            result.get('decoder', 'bayesian'),
         }
+        # Cache for /api/session/{game_id}/analysis
+        _analysis_cache[game_id] = enriched
+        return enriched
     except FileNotFoundError as e:
         return JSONResponse(status_code=404, content={"message": str(e)})
     except Exception as e:
         logging.exception("PGN generation failed")
         return JSONResponse(status_code=500, content={"message": str(e)})
+
+
+@app.get("/api/session/{game_id}/analysis")
+def get_session_analysis(game_id: str):
+    """Return enriched analysis for a processed session (cached after /api/generate_pgn)."""
+    if game_id in _analysis_cache:
+        return {**_analysis_cache[game_id], "cached": True}
+    return JSONResponse(status_code=404,
+        content={"message": "No analysis cached. Call /api/generate_pgn first."})
 
 
 # ──────────────────────────── Labeling API ───────────────────────────────────
@@ -934,6 +1019,286 @@ def labeling_get_labels(game_id: str, idx: str):
         with open(local_path) as f:
             return {"labels": json.load(f), "exists": True}
     return {"labels": {}, "exists": False}
+
+
+# ──────────────────────────── Eval Summary API ───────────────────────────────
+
+@app.get("/api/eval/summary")
+def get_eval_summary():
+    """Return structured benchmark results from the April 2026 ChessReD evaluation."""
+    return {
+        "benchmark": {
+            "dataset": "ChessReD (40 games, 4,321 frames)",
+            "date": "April 2026",
+            "model": "chess_piece_classifier_v2.pth + corner_detector.pth",
+        },
+        "classifier": {
+            "per_square_accuracy": 97.83,
+            "boards_exactly_correct": 51.72,
+            "frames_gte_90pct": 96.02,
+            "sota_per_square": 94.69,
+            "sota_boards_exact": 15.26,
+            "improvement_per_square": 3.14,
+            "improvement_exact_boards": 36.46,
+        },
+        "decoders": {
+            "bayesian": {"rate": 87.90, "recall": 100.0, "description": "Production decoder"},
+            "feedback": {"rate": 60.70, "recall": 85.4,  "description": "Naive baseline"},
+        },
+        "corner_detector": {
+            "localization_error_px": "2-10",
+            "training_frames": 2078,
+            "inference_speed_fps": 5.8,
+            "architecture": "ResNet18 + 4-channel heatmap decoder",
+        },
+    }
+
+
+@app.get("/api/eval/session/{game_id}")
+def eval_session_accuracy(game_id: str):
+    """Compute per-square accuracy for a session that has ground-truth labels."""
+    try:
+        if project_root not in sys.path:
+            sys.path.insert(0, project_root)
+
+        local_dir = os.path.join(project_root, "data", "sessions", game_id)
+        label_dir = os.path.join(local_dir, "labels")
+        warped_dir_path = os.path.join(local_dir, "warped")
+
+        if not os.path.isdir(label_dir):
+            return JSONResponse(status_code=404,
+                content={"message": "No labels found. Use the labeling tool first."})
+
+        label_files = sorted(f for f in os.listdir(label_dir) if f.endswith('.json'))
+        if not label_files:
+            return JSONResponse(status_code=404, content={"message": "Labels directory is empty."})
+
+        info_path = os.path.join(local_dir, "game_info.json")
+        with open(info_path) as f:
+            game_info = json.load(f)
+
+        grid = game_info.get('board_grid', {'x_lines': [i*50 for i in range(9)], 'y_lines': [i*50 for i in range(9)]})
+        rotation = game_info.get('rotation_angle', 0)
+
+        model_path = os.path.join(project_root, "models", "chess_piece_classifier_v2.pth")
+        if not os.path.exists(model_path):
+            model_path = os.path.join(project_root, "models", "chess_piece_classifier.pth")
+
+        from src.preprocessing.process_board import crop_squares_from_grid
+        from src.models.inference import ChessPieceClassifier
+        import numpy as np
+
+        clf = ChessPieceClassifier(model_path=model_path)
+        img_dir = warped_dir_path if os.path.isdir(warped_dir_path) else local_dir
+
+        per_frame = []
+        total_sq = 0
+        total_correct = 0
+
+        for lf in label_files:
+            frame_idx = os.path.splitext(lf)[0]
+            img_path = os.path.join(img_dir, f"{frame_idx}.jpg")
+            if not os.path.exists(img_path):
+                continue
+            img = cv2.imread(img_path)
+            if img is None:
+                continue
+
+            with open(os.path.join(label_dir, lf)) as f:
+                gt_labels = json.load(f)
+
+            patches = crop_squares_from_grid(img, grid, rotation)
+            predictions = clf.predict_board(patches)
+
+            correct = sum(1 for sq, (piece, _) in predictions.items()
+                          if gt_labels.get(sq) == piece)
+            total = len(gt_labels)
+            total_sq += total
+            total_correct += correct
+            per_frame.append({
+                "frame": frame_idx,
+                "correct": correct,
+                "total": total,
+                "accuracy": round(correct / total * 100, 1) if total else 0,
+            })
+
+        overall = round(total_correct / total_sq * 100, 2) if total_sq else 0
+        return {
+            "game_id": game_id,
+            "overall_accuracy": overall,
+            "total_squares": total_sq,
+            "total_correct": total_correct,
+            "frames_evaluated": len(per_frame),
+            "per_frame": per_frame,
+        }
+    except Exception as e:
+        logger.exception("Session eval failed")
+        return JSONResponse(status_code=500, content={"message": str(e)})
+
+
+# ──────────────────────────── Auto-label & Export API ────────────────────────
+
+class AutoLabelRequest(BaseModel):
+    confidence_threshold: float = 0.85
+    overwrite_existing: bool = False
+
+
+@app.post("/api/labeling/session/{game_id}/auto_label")
+def auto_label_session(game_id: str, data: AutoLabelRequest):
+    """Auto-label all frames using the classifier's per-square softmax.
+
+    Frames with avg confidence >= threshold are labeled automatically.
+    Frames below threshold are returned as flagged_for_review.
+    """
+    try:
+        if project_root not in sys.path:
+            sys.path.insert(0, project_root)
+
+        local_dir = os.path.join(project_root, "data", "sessions", game_id)
+        if not os.path.isdir(local_dir):
+            return JSONResponse(status_code=404, content={"message": "Session not found locally."})
+
+        model_path = os.path.join(project_root, "models", "chess_piece_classifier_v2.pth")
+        if not os.path.exists(model_path):
+            model_path = os.path.join(project_root, "models", "chess_piece_classifier.pth")
+        if not os.path.exists(model_path):
+            return JSONResponse(status_code=400, content={"message": "Classifier model not found."})
+
+        info_path = os.path.join(local_dir, "game_info.json")
+        with open(info_path) as f:
+            game_info = json.load(f)
+
+        grid     = game_info.get('board_grid', {'x_lines': [i*50 for i in range(9)], 'y_lines': [i*50 for i in range(9)]})
+        rotation = game_info.get('rotation_angle', 0)
+
+        img_dir = os.path.join(local_dir, "warped")
+        if not os.path.isdir(img_dir):
+            img_dir = local_dir
+
+        img_files = sorted(f for f in os.listdir(img_dir) if f.endswith('.jpg'))
+        if not img_files:
+            return JSONResponse(status_code=404, content={"message": "No images found in session."})
+
+        from src.preprocessing.process_board import crop_squares_from_grid
+        from src.models.inference import ChessPieceClassifier
+        import numpy as np
+
+        clf = ChessPieceClassifier(model_path=model_path)
+        label_dir = os.path.join(local_dir, "labels")
+        os.makedirs(label_dir, exist_ok=True)
+
+        FEN_CLASSES = ['empty','P','N','B','R','Q','K','p','n','b','r','q','k']
+        labeled, skipped_existing, flagged = 0, 0, []
+
+        for img_file in img_files:
+            frame_idx = os.path.splitext(img_file)[0]
+            label_path = os.path.join(label_dir, f"{frame_idx}.json")
+
+            if os.path.exists(label_path) and not data.overwrite_existing:
+                skipped_existing += 1
+                continue
+
+            img = cv2.imread(os.path.join(img_dir, img_file))
+            if img is None:
+                continue
+
+            patches   = crop_squares_from_grid(img, grid, rotation)
+            probs     = clf.predict_board_full_probs(patches)
+            labels    = {}
+            avg_conf  = 0.0
+
+            for sq, prob_vec in probs.items():
+                idx = int(np.argmax(prob_vec))
+                labels[sq] = FEN_CLASSES[idx]
+                avg_conf  += float(prob_vec[idx])
+            avg_conf /= 64
+
+            if avg_conf >= data.confidence_threshold:
+                with open(label_path, 'w') as f:
+                    json.dump(labels, f, indent=2)
+                labeled += 1
+            else:
+                flagged.append({
+                    "frame": frame_idx,
+                    "avg_confidence": round(avg_conf, 3),
+                    "filename": img_file,
+                })
+
+        return {
+            "status": "success",
+            "labeled": labeled,
+            "skipped_existing": skipped_existing,
+            "flagged_for_review": flagged,
+            "threshold": data.confidence_threshold,
+        }
+    except Exception as e:
+        logger.exception("Auto-labeling failed")
+        return JSONResponse(status_code=500, content={"message": str(e)})
+
+
+@app.get("/api/labeling/session/{game_id}/export")
+def export_labeled_session(game_id: str):
+    """Export labeled session frames as a training-format ZIP.
+
+    ZIP structure: {piece_class}/{game_id}_{frame}_{square}.jpg
+    Compatible with torchvision.datasets.ImageFolder.
+    """
+    import io as _io
+    import zipfile
+
+    local_dir  = os.path.join(project_root, "data", "sessions", game_id)
+    label_dir  = os.path.join(local_dir, "labels")
+    warped_dir_path = os.path.join(local_dir, "warped")
+    img_dir    = warped_dir_path if os.path.isdir(warped_dir_path) else local_dir
+
+    if not os.path.isdir(label_dir):
+        return JSONResponse(status_code=404,
+            content={"message": "No labels found. Run auto-label or label manually first."})
+
+    info_path = os.path.join(local_dir, "game_info.json")
+    with open(info_path) as f:
+        game_info = json.load(f)
+
+    grid     = game_info.get('board_grid', {'x_lines': [i*50 for i in range(9)], 'y_lines': [i*50 for i in range(9)]})
+    rotation = game_info.get('rotation_angle', 0)
+
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+    from src.preprocessing.process_board import crop_squares_from_grid
+
+    buf = _io.BytesIO()
+    total_patches = 0
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for lf in sorted(os.listdir(label_dir)):
+            if not lf.endswith('.json'):
+                continue
+            frame_idx = os.path.splitext(lf)[0]
+            img_path  = os.path.join(img_dir, f"{frame_idx}.jpg")
+            if not os.path.exists(img_path):
+                continue
+            img = cv2.imread(img_path)
+            if img is None:
+                continue
+
+            with open(os.path.join(label_dir, lf)) as f:
+                labels = json.load(f)
+
+            patches = crop_squares_from_grid(img, grid, rotation)
+            for sq, piece_class in labels.items():
+                if sq not in patches:
+                    continue
+                patch = patches[sq]
+                _, patch_buf = cv2.imencode('.jpg', patch, [cv2.IMWRITE_JPEG_QUALITY, 92])
+                zf.writestr(f"{piece_class}/{game_id}_{frame_idx}_{sq}.jpg", patch_buf.tobytes())
+                total_patches += 1
+
+    buf.seek(0)
+    logger.info(f"Exported {total_patches} patches for {game_id}")
+    return Response(
+        content=buf.read(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={game_id}_training_data.zip"},
+    )
 
 
 # ──────────────────────────── Static files (must be last) ────────────────────
