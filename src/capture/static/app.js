@@ -19,6 +19,7 @@ const btnCalibrate    = document.getElementById('btn-calibrate');
 const btnResetBox     = document.getElementById('btn-reset-box');
 const btnAutoCorners  = document.getElementById('btn-auto-corners');
 const calibControls   = document.getElementById('calibration-controls');
+const btnCalMenuToggle = document.getElementById('btn-cal-menu-toggle');
 
 const orientPanel     = document.getElementById('orientation-panel');
 const warpedImg       = document.getElementById('warped-board-img');
@@ -61,6 +62,13 @@ let correctedGrid = null;   // {x_lines: [...], y_lines: [...]}
 let gridDragIdx   = -1;     // index of line being dragged (0-8 for x, 9-17 for y)
 let gridDragType  = null;   // 'x' or 'y'
 const GRID_HIT_R  = 20;    // hit radius in display pixels
+
+function setCalibrationMenuOpen(open) {
+    if (!calibControls || !btnCalMenuToggle) return;
+    calibControls.classList.toggle('open', open);
+    btnCalMenuToggle.classList.toggle('open', open);
+    btnCalMenuToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
 
 // ─── Setup form ──────────────────────────────────────────────────────────────
 
@@ -167,6 +175,7 @@ const HIT_R_CORNER = 34;  // display px hit radius for corners
 const HIT_R_EDGE   = 28;  // display px hit radius for edge midpoints
 let cropBox = null;
 let dragIdx = -1;
+let autoDetectHighlightUntil = 0;
 
 function defaultCropBox() {
     const w = overlayCanvas.width  || 640;
@@ -217,6 +226,7 @@ function drawCropBox() {
     // Handle draw radii in canvas pixels (≈ target display px)
     const cornerR = 13 * Math.max(sx, sy);
     const edgeR   =  9 * Math.max(sx, sy);
+    const autoDetected = performance.now() < autoDetectHighlightUntil;
 
     // ── Quad fill + outline ───────────────────────────────────────────────────
     ctx.beginPath();
@@ -235,7 +245,7 @@ function drawCropBox() {
         const active = (dragIdx === i + 4);
         ctx.beginPath();
         ctx.arc(p.x, p.y, edgeR, 0, 2 * Math.PI);
-        ctx.fillStyle   = active ? '#ffffff' : 'rgba(88, 166, 255, 0.65)';
+        ctx.fillStyle   = active ? '#ffffff' : (autoDetected ? 'rgba(46, 160, 67, 0.75)' : 'rgba(88, 166, 255, 0.65)');
         ctx.fill();
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth   = Math.max(1, 1.5 * Math.max(sx, sy));
@@ -248,7 +258,7 @@ function drawCropBox() {
         const active = (dragIdx === i);
         ctx.beginPath();
         ctx.arc(p.x, p.y, cornerR, 0, 2 * Math.PI);
-        ctx.fillStyle   = active ? '#ffffff' : 'rgba(88, 166, 255, 0.92)';
+        ctx.fillStyle   = active ? '#ffffff' : (autoDetected ? 'rgba(46, 160, 67, 0.95)' : 'rgba(88, 166, 255, 0.92)');
         ctx.fill();
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth   = Math.max(1.5, 2 * Math.max(sx, sy));
@@ -325,6 +335,26 @@ function stopDrag() {
     if (dragIdx >= 0) { dragIdx = -1; drawCropBox(); }
 }
 
+function detectedPointsToCanvas(points, sourceWidth, sourceHeight) {
+    const srcW = sourceWidth  || video.videoWidth  || overlayCanvas.width;
+    const srcH = sourceHeight || video.videoHeight || overlayCanvas.height;
+    const dstW = overlayCanvas.width  || srcW;
+    const dstH = overlayCanvas.height || srcH;
+    const normalized = points.every(p =>
+        Number.isFinite(p.x) && Number.isFinite(p.y) &&
+        p.x >= 0 && p.x <= 1 && p.y >= 0 && p.y <= 1
+    );
+
+    return points.map(p => {
+        const srcX = normalized ? p.x * srcW : p.x;
+        const srcY = normalized ? p.y * srcH : p.y;
+        return {
+            x: Math.max(0, Math.min(dstW, srcX * dstW / srcW)),
+            y: Math.max(0, Math.min(dstH, srcY * dstH / srcH)),
+        };
+    });
+}
+
 // ── Mouse (laptop / desktop) ─────────────────────────────────────────────────
 overlayCanvas.addEventListener('mousedown', e => {
     if (isCalibrated) return;
@@ -366,11 +396,17 @@ overlayCanvas.addEventListener('touchcancel', stopDrag);
 
 // ── Controls ─────────────────────────────────────────────────────────────────
 btnResetBox.addEventListener('click', () => {
+    setCalibrationMenuOpen(false);
     cropBox = defaultCropBox();
     drawCropBox();
 });
 
+btnCalMenuToggle.addEventListener('click', () => {
+    setCalibrationMenuOpen(!calibControls.classList.contains('open'));
+});
+
 btnAutoCorners.addEventListener('click', async () => {
+    setCalibrationMenuOpen(false);
     const frameB64 = getFrameBase64();
     if (!frameB64) return;
     const orig = btnAutoCorners.innerText;
@@ -384,13 +420,11 @@ btnAutoCorners.addEventListener('click', async () => {
         });
         const data = await res.json();
         if (data.status === 'success' && data.points && data.points.length === 4) {
-            // Server returns [TL, TR, BR, BL] in 400×400 warped space;
-            // we need to map back to canvas pixel space via the current video dims.
-            const vw = video.videoWidth  || overlayCanvas.width;
-            const vh = video.videoHeight || overlayCanvas.height;
-            // points come back as normalised 0-1 fractions of the original frame
-            cropBox = data.points.map(p => ({ x: p.x * vw, y: p.y * vh }));
+            // Server returns [TL, TR, BR, BL] in source-frame pixel space.
+            cropBox = detectedPointsToCanvas(data.points, data.image_width, data.image_height);
+            autoDetectHighlightUntil = performance.now() + 2000;
             drawCropBox();
+            setTimeout(drawCropBox, 2100);
             btnAutoCorners.innerText = 'Auto-detect ✓';
             setTimeout(() => {
                 btnAutoCorners.innerText = orig;
@@ -409,6 +443,7 @@ btnAutoCorners.addEventListener('click', async () => {
 });
 
 btnCalibrate.addEventListener('click', async () => {
+    setCalibrationMenuOpen(false);
     if (!cropBox) return;
     const frameB64 = getFrameBase64();
     if (!frameB64) {
@@ -1039,6 +1074,7 @@ function updateStatusBadge(state) {
         gameMain.classList.add('cal-fullscreen');
     } else {
         gameMain.classList.remove('cal-fullscreen');
+        setCalibrationMenuOpen(false);
     }
 }
 

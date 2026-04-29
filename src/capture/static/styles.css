@@ -100,6 +100,9 @@ main {
 /* ── Video area ───────────────────────────────────────────── */
 .video-wrapper {
     width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
 }
 
 .video-container {
@@ -146,6 +149,35 @@ main {
     min-width: 100px;
     font-size: 0.82rem;
     color: rgba(255,255,255,0.82);
+}
+
+.calibration-menu {
+    position: static;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+.cal-menu-toggle {
+    display: none;
+    position: absolute;
+    top: max(0.75rem, env(safe-area-inset-top));
+    right: max(0.75rem, env(safe-area-inset-right));
+    z-index: 24;
+    min-height: 44px;
+    padding: 0 0.9rem;
+    border: 1px solid rgba(255,255,255,0.22);
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.72);
+    color: #fff;
+    font: inherit;
+    font-size: 0.86rem;
+    font-weight: 700;
+    backdrop-filter: blur(8px);
+}
+
+.cal-menu-toggle.open {
+    border-color: var(--accent);
+    color: var(--accent);
 }
 
 /* ── Sidebar ──────────────────────────────────────────────── */
@@ -386,6 +418,12 @@ main.cal-fullscreen .video-container {
     margin: 0 auto;
 }
 
+main.cal-fullscreen .calibration-menu {
+    max-width: calc((100dvh - 120px) * 4 / 3);
+    width: 100%;
+    margin: 0 auto;
+}
+
 /* ── Slim setup grid (players only) ──────────────────────── */
 .setup-grid--players {
     grid-template-columns: 1fr 1fr;
@@ -494,13 +532,47 @@ main.cal-fullscreen .video-container {
         aspect-ratio: 3/4;
     }
 
-    /* Fullscreen calibration on mobile — fill more screen, keep 4:3 */
+    main.cal-fullscreen .video-wrapper {
+        position: fixed;
+        inset: 0;
+        z-index: 80;
+        background: #000;
+        align-items: center;
+        justify-content: center;
+        padding: max(0.5rem, env(safe-area-inset-top)) max(0.5rem, env(safe-area-inset-right)) max(0.5rem, env(safe-area-inset-bottom)) max(0.5rem, env(safe-area-inset-left));
+    }
+
     main.cal-fullscreen .video-container {
         aspect-ratio: 4/3;
         width: 100%;
-        max-height: calc(100dvh - 100px);
-        max-width: calc((100dvh - 100px) * 4 / 3);
+        max-height: 100dvh;
+        max-width: calc(100dvh * 4 / 3);
         border-radius: 0;
+        border: 0;
+        box-shadow: none;
+    }
+
+    main.cal-fullscreen .cal-menu-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    main.cal-fullscreen .calibration-menu {
+        display: none;
+        position: absolute;
+        left: max(0.6rem, env(safe-area-inset-left));
+        right: max(0.6rem, env(safe-area-inset-right));
+        bottom: max(0.6rem, env(safe-area-inset-bottom));
+        width: auto;
+        max-width: 420px;
+        margin: 0 auto;
+        border-radius: 8px;
+        box-shadow: 0 10px 28px rgba(0,0,0,0.55);
+    }
+
+    main.cal-fullscreen .calibration-menu.open {
+        display: flex;
     }
 
     .sidebar {

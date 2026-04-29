@@ -60,12 +60,7 @@
                     <!-- Step 1: Crop-box calibration -->
                     <video id="webcam" autoplay playsinline muted></video>
                     <canvas id="overlay-canvas"></canvas>
-                    <div class="cam-bar" id="calibration-controls">
-                        <span class="cam-hint">Drag corners to frame the board</span>
-                        <button id="btn-auto-corners" class="btn secondary">Auto-detect</button>
-                        <button id="btn-calibrate" class="btn primary">Calibrate</button>
-                        <button id="btn-reset-box" class="btn secondary">Reset Box</button>
-                    </div>
+                    <button id="btn-cal-menu-toggle" class="cal-menu-toggle" type="button" aria-expanded="false" aria-controls="calibration-controls">Menu</button>
 
                     <!-- Step 3: a1 orientation (4-button picker) -->
                     <div id="orientation-panel" style="display:none; position:absolute; inset:0; background:#000; flex-direction:column; z-index:25;">
@@ -104,6 +99,12 @@
                     </div>
 
                 </div><!-- /video-container -->
+                <div class="cam-bar calibration-menu" id="calibration-controls">
+                    <span class="cam-hint">Drag corners to frame the board</span>
+                    <button id="btn-auto-corners" class="btn secondary">Auto-detect</button>
+                    <button id="btn-calibrate" class="btn primary">Calibrate</button>
+                    <button id="btn-reset-box" class="btn secondary">Reset Box</button>
+                </div>
             </div><!-- /video-wrapper -->
 
             <!-- Sidebar / info panels -->

@@ -747,7 +747,8 @@ def detect_corners_endpoint(data: AutoCornersRequest):
             {"x": corners["bottom_left"][0],  "y": corners["bottom_left"][1]},
         ]
         logger.info(f"Corner detection: TL={points[0]}, TR={points[1]}, BR={points[2]}, BL={points[3]}")
-        return {"status": "success", "points": points}
+        h, w = frame.shape[:2]
+        return {"status": "success", "points": points, "image_width": w, "image_height": h}
     except Exception as e:
         logger.exception("Corner detection failed")
         return JSONResponse(status_code=500, content={"message": str(e)})
