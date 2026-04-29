@@ -1099,6 +1099,7 @@ function updateStatusBadge(state) {
     statusBadge.className = 'status-badge ' + state.toLowerCase();
     updateStepper(state);
     const gameMain = document.getElementById('game-panel');
+    document.body.classList.toggle('capture-focus', CAL_STATES.has(state));
     if (CAL_STATES.has(state)) {
         gameMain.classList.add('cal-fullscreen');
     } else {
