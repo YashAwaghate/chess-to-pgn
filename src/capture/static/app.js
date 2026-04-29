@@ -37,6 +37,9 @@ const btnConfirmGrid   = document.getElementById('btn-confirm-grid');
 const btnRedoOrient    = document.getElementById('btn-redo-orientation');
 
 const statusBadge    = document.getElementById('app-status');
+const stepDots       = [...document.querySelectorAll('.step-dot')];
+const stepLabels     = [...document.querySelectorAll('.step-label')];
+const stepLines      = [...document.querySelectorAll('.step-line')];
 const infoWhite      = document.getElementById('info-white');
 const infoBlack      = document.getElementById('info-black');
 const infoEvent      = document.getElementById('info-event');
@@ -411,37 +414,36 @@ btnAutoCorners.addEventListener('click', async () => {
     if (!frameB64) return;
     const orig = btnAutoCorners.innerText;
     btnAutoCorners.disabled  = true;
-    btnAutoCorners.innerText = 'Detecting…';
+    btnAutoCorners.innerText = 'Auto-calibrating...';
     try {
-        const res  = await fetch('/api/detect_corners', {
+        const res  = await fetch('/api/auto_calibrate', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify({ image_b64: frameB64 }),
         });
         const data = await res.json();
-        if (data.status === 'success' && data.points && data.points.length === 4) {
+        if (data.status === 'success' && data.warped_b64 && data.grid) {
             // Server returns [TL, TR, BR, BL] in source-frame pixel space.
-            cropBox = detectedPointsToCanvas(data.points, data.image_width, data.image_height);
-            autoDetectHighlightUntil = performance.now() + 2000;
-            drawCropBox();
-            setTimeout(drawCropBox, 2100);
-            btnAutoCorners.innerText = 'Auto-detect ✓';
-            setTimeout(() => {
-                btnAutoCorners.innerText = orig;
-                btnAutoCorners.disabled  = false;
-            }, 2000);
+            if (data.points && data.points.length === 4) {
+                cropBox = detectedPointsToCanvas(data.points, data.image_width, data.image_height);
+                autoDetectHighlightUntil = performance.now() + 1200;
+                drawCropBox();
+            }
+            btnAutoCorners.innerText = 'Auto-calibrated';
+            btnCalibrate.disabled = true;
+            showGridCorrectionStep(data.warped_b64, data.grid);
         } else {
-            alert('Auto-detect failed: ' + (data.message || 'no corners found'));
+            alert('Auto-calibrate failed: ' + (data.message || 'no corners found'));
             btnAutoCorners.innerText = orig;
             btnAutoCorners.disabled  = false;
         }
     } catch (e) {
         console.error(e);
+        alert('Auto-calibrate failed. Please try manual corners.');
         btnAutoCorners.innerText = orig;
         btnAutoCorners.disabled  = false;
     }
 });
-
 btnCalibrate.addEventListener('click', async () => {
     setCalibrationMenuOpen(false);
     if (!cropBox) return;
@@ -779,6 +781,8 @@ btnRedoOrient.addEventListener('click', () => {
     calibControls.style.display  = '';
     btnCalibrate.disabled  = false;
     btnCalibrate.innerText = 'Calibrate';
+    btnAutoCorners.disabled = false;
+    btnAutoCorners.innerText = 'Auto-calibrate';
     cropBox = defaultCropBox();
     drawCropBox();
     updateStatusBadge('CALIBRATING');
@@ -1065,10 +1069,35 @@ btnNewFreshCal.addEventListener('click', async () => {
 
 // ─── Session loop ─────────────────────────────────────────────────────────────
 const CAL_STATES = new Set(['CALIBRATING', 'GRID_CORRECTION', 'ORIENTATION']);
+const STEP_BY_STATE = {
+    SETUP: 0,
+    CALIBRATING: 1,
+    GRID_CORRECTION: 2,
+    ORIENTATION: 3,
+    STATIC: 4,
+    MOVING: 4,
+};
+
+function updateStepper(state) {
+    const activeIdx = STEP_BY_STATE[state] ?? 0;
+    stepDots.forEach((dot, i) => {
+        dot.classList.toggle('done', i < activeIdx);
+        dot.classList.toggle('active', i === activeIdx);
+        dot.textContent = i < activeIdx ? '✓' : String(i + 1);
+    });
+    stepLabels.forEach((label, i) => {
+        label.classList.toggle('done', i < activeIdx);
+        label.classList.toggle('active', i === activeIdx);
+    });
+    stepLines.forEach((line, i) => {
+        line.classList.toggle('done', i < activeIdx);
+    });
+}
 
 function updateStatusBadge(state) {
     statusBadge.innerText = state;
     statusBadge.className = 'status-badge ' + state.toLowerCase();
+    updateStepper(state);
     const gameMain = document.getElementById('game-panel');
     if (CAL_STATES.has(state)) {
         gameMain.classList.add('cal-fullscreen');
@@ -1141,6 +1170,8 @@ btnReset.addEventListener('click', async () => {
     document.querySelectorAll('.result-btn').forEach(b => b.disabled = false);
     btnCalibrate.disabled  = false;
     btnCalibrate.innerText = 'Calibrate';
+    btnAutoCorners.disabled = false;
+    btnAutoCorners.innerText = 'Auto-calibrate';
     btnStartSession.disabled  = false;
     btnStartSession.innerText = 'Start Session →';
     delete inpEvent.dataset.userEdited;

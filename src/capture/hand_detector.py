@@ -1,4 +1,3 @@
-import cv2
 import numpy as np
 import mediapipe as mp
 from mediapipe.tasks import python as mp_python
@@ -18,6 +17,31 @@ _HAND_CONNECTIONS = [
     (0,17),(17,18),(18,19),(19,20),   # pinky
     (5,9),(9,13),(13,17),             # palm knuckles
 ]
+
+
+def _point_in_polygon(point, polygon) -> bool:
+    """Ray-casting point-in-polygon test; treats boundary as inside enough for hand gating."""
+    x, y = point
+    inside = False
+    n = len(polygon)
+    if n < 3:
+        return False
+
+    for i in range(n):
+        x1, y1 = polygon[i]
+        x2, y2 = polygon[(i + 1) % n]
+        dx = x2 - x1
+        dy = y2 - y1
+
+        cross = (x - x1) * dy - (y - y1) * dx
+        if abs(cross) < 1e-6 and min(x1, x2) <= x <= max(x1, x2) and min(y1, y2) <= y <= max(y1, y2):
+            return True
+
+        if (y1 > y) != (y2 > y):
+            x_intersect = x1 + (y - y1) * dx / dy
+            if x_intersect >= x:
+                inside = not inside
+    return inside
 
 
 @dataclass
@@ -81,13 +105,15 @@ class HandDetector:
         HandDetectionResult
         """
         h, w = frame_bgr.shape[:2]
-        rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+        rgb = frame_bgr[:, :, ::-1].copy()
 
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
         timestamp_ms = int((time.time() - self._start_time) * 1000)
         result = self._detector.detect_for_video(mp_image, timestamp_ms)
 
-        annotated = frame_bgr.copy()
+        from PIL import Image, ImageDraw
+        annotated_pil = Image.fromarray(rgb, mode="RGB")
+        draw = ImageDraw.Draw(annotated_pil)
         landmarks_px: List[tuple] = []
 
         if result.hand_landmarks:
@@ -97,25 +123,26 @@ class HandDetector:
 
                 # Draw connections
                 for a, b in _HAND_CONNECTIONS:
-                    cv2.line(annotated, pts[a], pts[b], (0, 200, 255), 2)
+                    draw.line([pts[a], pts[b]], fill=(255, 200, 0), width=2)
                 # Draw landmark dots
                 for px, py in pts:
-                    cv2.circle(annotated, (px, py), 4, (0, 255, 200), -1)
+                    draw.ellipse((px - 4, py - 4, px + 4, py + 4), fill=(200, 255, 0))
 
         hand_present = len(landmarks_px) > 0
         over_board = False
 
         if hand_present and board_corners_px is not None:
-            corners = np.array(board_corners_px, dtype=np.float32).reshape(-1, 1, 2)
+            corners = [(float(x), float(y)) for x, y in np.asarray(board_corners_px, dtype=float).reshape(-1, 2)]
             for px, py in landmarks_px:
-                if cv2.pointPolygonTest(corners, (float(px), float(py)), False) >= 0:
+                if _point_in_polygon((float(px), float(py)), corners):
                     over_board = True
                     break
 
             # Draw board polygon on debug frame
-            cv2.polylines(annotated,
-                          [np.array(board_corners_px, dtype=np.int32).reshape(-1, 1, 2)],
-                          isClosed=True, color=(0, 255, 0), thickness=2)
+            if len(corners) >= 2:
+                draw.line(corners + [corners[0]], fill=(0, 255, 0), width=2)
+
+        annotated = np.asarray(annotated_pil, dtype=np.uint8)[:, :, ::-1].copy()
 
         return HandDetectionResult(
             hand_present=hand_present,

@@ -8,22 +8,55 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Chess PGN Capture</title>
     <link rel="stylesheet" href="styles.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="container">
 
-        <header>
+        <header class="app-header">
             <div class="header-content">
-                <h1>♟ Chess Capture</h1>
-                <div class="header-links">
+                <div class="logo" aria-label="Chess Capture">
+                    <div class="logo-glyph">&#9823;</div>
+                    <div>
+                        <div class="logo-text">Chess Capture</div>
+                        <div class="logo-sub">OTB to PGN</div>
+                    </div>
+                </div>
+                <div class="header-spacer"></div>
+                <nav class="header-links" aria-label="Secondary">
                     <a href="/accuracy.html" class="btn secondary small">Accuracy</a>
                     <a href="/viewer.html"   class="btn secondary small">Gallery</a>
-                </div>
-                <div class="status-badge" id="app-status">SETUP</div>
+                </nav>
+                <div class="status-badge setup" id="app-status">SETUP</div>
             </div>
         </header>
 
+        <div class="step-track" id="step-track" aria-label="Capture progress">
+            <div class="step-col">
+                <div class="step-dot active" id="step-dot-0">1</div>
+                <div class="step-label active" id="step-label-0">Setup</div>
+            </div>
+            <div class="step-line" id="step-line-0"></div>
+            <div class="step-col">
+                <div class="step-dot" id="step-dot-1">2</div>
+                <div class="step-label" id="step-label-1">Calibrate</div>
+            </div>
+            <div class="step-line" id="step-line-1"></div>
+            <div class="step-col">
+                <div class="step-dot" id="step-dot-2">3</div>
+                <div class="step-label" id="step-label-2">Grid</div>
+            </div>
+            <div class="step-line" id="step-line-2"></div>
+            <div class="step-col">
+                <div class="step-dot" id="step-dot-3">4</div>
+                <div class="step-label" id="step-label-3">Orient</div>
+            </div>
+            <div class="step-line" id="step-line-3"></div>
+            <div class="step-col">
+                <div class="step-dot" id="step-dot-4">5</div>
+                <div class="step-label" id="step-label-4">Capture</div>
+            </div>
+        </div>
         <!-- ── Step 0: Game Setup ──────────────────────────────────────────── -->
         <div id="setup-panel" class="setup-panel">
             <h2>New Game</h2>
@@ -101,7 +134,7 @@
                 </div><!-- /video-container -->
                 <div class="cam-bar calibration-menu" id="calibration-controls">
                     <span class="cam-hint">Drag corners to frame the board</span>
-                    <button id="btn-auto-corners" class="btn secondary">Auto-detect</button>
+                    <button id="btn-auto-corners" class="btn secondary">Auto-calibrate</button>
                     <button id="btn-calibrate" class="btn primary">Calibrate</button>
                     <button id="btn-reset-box" class="btn secondary">Reset Box</button>
                 </div>

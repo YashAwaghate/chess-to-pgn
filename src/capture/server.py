@@ -12,6 +12,7 @@ import json
 import logging
 import sys
 import math
+import io
 from datetime import date
 from enum import Enum
 from fastapi import FastAPI
@@ -260,12 +261,47 @@ def perspective_transform_from_points(src: np.ndarray, dst: np.ndarray) -> np.nd
         [coeffs[6], coeffs[7], 1.0],
     ], dtype=np.float64)
 
+def bgr_to_pil(frame: np.ndarray):
+    from PIL import Image
+    rgb = frame[:, :, ::-1]
+    return Image.fromarray(rgb.astype(np.uint8, copy=False), mode="RGB")
+
+def pil_to_bgr(image) -> np.ndarray:
+    rgb = np.asarray(image.convert("RGB"), dtype=np.uint8)
+    return rgb[:, :, ::-1].copy()
+
+def warp_board_pil(frame: np.ndarray, matrix: np.ndarray, size: int = BOARD_SIZE) -> np.ndarray:
+    """Perspective-warp a BGR frame to size x size without cv2 point/image APIs."""
+    from PIL import Image
+    inv = np.linalg.inv(np.asarray(matrix, dtype=np.float64))
+    inv = inv / inv[2, 2]
+    coeffs = tuple(float(v) for v in inv.reshape(-1)[:8])
+    warped = bgr_to_pil(frame).transform(
+        (size, size),
+        Image.Transform.PERSPECTIVE,
+        coeffs,
+        resample=Image.Resampling.BICUBIC,
+    )
+    return pil_to_bgr(warped)
+
+def encode_jpeg_bytes(img: np.ndarray, quality: int = 92) -> bytes:
+    out = io.BytesIO()
+    bgr_to_pil(img).save(out, format="JPEG", quality=quality)
+    return out.getvalue()
+
 def encode_image(img: np.ndarray) -> str:
-    _, buf = cv2.imencode('.jpg', img)
-    return "data:image/jpeg;base64," + base64.b64encode(buf).decode()
+    return "data:image/jpeg;base64," + base64.b64encode(encode_jpeg_bytes(img)).decode()
 
 def apply_rotation(image: np.ndarray, code) -> np.ndarray:
-    return image if code is None else cv2.rotate(image, code)
+    if code is None:
+        return image
+    if code == cv2.ROTATE_90_CLOCKWISE:
+        return np.rot90(image, k=3).copy()
+    if code == cv2.ROTATE_180:
+        return np.rot90(image, k=2).copy()
+    if code == cv2.ROTATE_90_COUNTERCLOCKWISE:
+        return np.rot90(image, k=1).copy()
+    return image
 
 def _rotate_grid(grid: dict, code) -> dict:
     """Rotate grid line coordinates to match a cv2.rotate() code applied to a 400×400 image."""
@@ -297,6 +333,65 @@ def detect_board_grid(warped: np.ndarray) -> dict:
         'y_lines': [round(i * H / 8) for i in range(9)],
     }
 
+def calibrate_from_points(frame: np.ndarray, points: list[Point2D]) -> dict:
+    src = calibration_points_to_array(points, frame.shape)
+    dst = np.array([[0,0],[400,0],[400,400],[0,400]], dtype=np.float64, order="C")
+    logger.info(
+        "calibrate: src type=%s dtype=%s shape=%s contig=%s values=%s",
+        type(src).__name__, src.dtype, src.shape, src.flags['C_CONTIGUOUS'], src.tolist()
+    )
+
+    session.perspective_matrix = perspective_transform_from_points(src, dst)
+    session.board_corners = src.astype(float).tolist()
+
+    warped = warp_board_pil(frame, session.perspective_matrix, BOARD_SIZE)
+    session.warped_setup_frame = warped.copy()
+    session.state = CaptureState.GRID_CORRECTION
+
+    grid = detect_board_grid(warped)
+    session.board_grid = grid
+    logger.info(f"Grid — x: {grid['x_lines']}, y: {grid['y_lines']}")
+    return {"status": "success", "warped_b64": encode_image(warped), "grid": grid}
+
+def point_to_dict(point: Point2D) -> dict:
+    return {"x": float(point.x), "y": float(point.y)}
+
+def detect_corner_points(frame: np.ndarray) -> list[Point2D]:
+    """Run the trained model and return [TL, TR, BR, BL] points in frame pixels."""
+    global _corner_detector_model, _corner_detector_device
+
+    model_path = os.path.join(project_root, "models", "corner_detector.pth")
+    if not os.path.exists(model_path):
+        raise FileNotFoundError("corner_detector.pth not found. Train the corner detector first.")
+
+    if _corner_detector_model is None:
+        import torch
+        if project_root not in sys.path:
+            sys.path.insert(0, project_root)
+        from src.models.corner_detector import CornerDetector
+        _corner_detector_device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        ckpt = torch.load(model_path, map_location=_corner_detector_device, weights_only=False)
+        _corner_detector_model = CornerDetector(pretrained=False).to(_corner_detector_device)
+        _corner_detector_model.load_state_dict(ckpt['model_state_dict'])
+        _corner_detector_model.eval()
+        logger.info(f"Corner detector loaded (epoch {ckpt.get('epoch','?')}, device={_corner_detector_device})")
+
+    from src.models.corner_detector import predict_corners
+    corners = predict_corners(_corner_detector_model, frame, device=_corner_detector_device)
+
+    points = [
+        Point2D(x=corners["top_left"][0],     y=corners["top_left"][1]),
+        Point2D(x=corners["top_right"][0],    y=corners["top_right"][1]),
+        Point2D(x=corners["bottom_right"][0], y=corners["bottom_right"][1]),
+        Point2D(x=corners["bottom_left"][0],  y=corners["bottom_left"][1]),
+    ]
+    logger.info(
+        "Corner detection: TL=%s, TR=%s, BR=%s, BL=%s",
+        point_to_dict(points[0]), point_to_dict(points[1]),
+        point_to_dict(points[2]), point_to_dict(points[3]),
+    )
+    return points
+
 
 def write_game_info():
     """Write (or update) game_info.json — to S3 if configured, else locally."""
@@ -322,13 +417,15 @@ def debug_grid():
     """Returns the warped setup frame with the detected grid drawn on it — useful for verifying detection."""
     if session.warped_setup_frame is None or session.board_grid is None:
         return JSONResponse(status_code=400, content={"message": "No warped frame available"})
-    img   = session.warped_setup_frame.copy()
+    from PIL import ImageDraw
+    pil_img = bgr_to_pil(session.warped_setup_frame)
+    draw = ImageDraw.Draw(pil_img)
     grid  = session.board_grid
     for x in grid['x_lines']:
-        cv2.line(img, (x, 0), (x, img.shape[0]), (0, 255, 0), 2)
+        draw.line([(x, 0), (x, pil_img.height)], fill=(0, 255, 0), width=2)
     for y in grid['y_lines']:
-        cv2.line(img, (0, y), (img.shape[1], y), (0, 255, 0), 2)
-    return {"debug_b64": encode_image(img)}
+        draw.line([(0, y), (pil_img.width, y)], fill=(0, 255, 0), width=2)
+    return {"debug_b64": encode_image(pil_to_bgr(pil_img))}
 
 
 @app.get("/api/state")
@@ -392,25 +489,7 @@ def calibrate(data: CalibrationData):
         return JSONResponse(status_code=400, content={"message": "Not in CALIBRATING state"})
     try:
         frame = decode_image(data.image_b64)
-        src   = calibration_points_to_array(data.points, frame.shape)
-        dst   = np.array([[0,0],[400,0],[400,400],[0,400]], dtype=np.float32, order="C")
-        logger.info(
-            "calibrate: src type=%s dtype=%s shape=%s contig=%s values=%s",
-            type(src).__name__, src.dtype, src.shape, src.flags['C_CONTIGUOUS'], src.tolist()
-        )
-
-        session.perspective_matrix = perspective_transform_from_points(src, dst)
-        session.board_corners      = src.astype(float).tolist()
-
-        warped = cv2.warpPerspective(frame, session.perspective_matrix, (BOARD_SIZE, BOARD_SIZE))
-        session.warped_setup_frame = warped.copy()
-        session.state              = CaptureState.GRID_CORRECTION
-
-        grid = detect_board_grid(warped)
-        session.board_grid = grid
-        logger.info(f"Grid — x: {grid['x_lines']}, y: {grid['y_lines']}")
-
-        return {"status": "success", "warped_b64": encode_image(warped), "grid": grid}
+        return calibrate_from_points(frame, data.points)
     except ValueError as e:
         logger.warning(f"Calibration rejected: {e}")
         return JSONResponse(status_code=400, content={"message": str(e), "type": type(e).__name__})
@@ -589,7 +668,7 @@ def process_frame(data: FrameData):
                 session.state          = CaptureState.STATIC
                 session.hand_exit_time = None
 
-                warped  = cv2.warpPerspective(frame, session.perspective_matrix, (BOARD_SIZE, BOARD_SIZE))
+                warped  = warp_board_pil(frame, session.perspective_matrix, BOARD_SIZE)
                 rotated = apply_rotation(warped, session.rotation_code)
                 save_and_upload(rotated, raw_frame=frame)
                 session.last_board_thumb = rotated.copy()
@@ -623,24 +702,24 @@ def save_and_upload(frame: np.ndarray, raw_frame: np.ndarray = None):
     filename = f"{session.move_number:03d}.jpg"
 
     # Always save warped+rotated image
-    _, buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 92])
-    img_bytes = buf.tobytes()
+    img_bytes = encode_jpeg_bytes(frame, quality=92)
     s3_key = f"{S3_PREFIX}/{session.game_id}/warped/{filename}"
     if not _s3_put(s3_key, img_bytes):
         save_dir = os.path.join(project_root, "data", "sessions", session.game_id, "warped")
         os.makedirs(save_dir, exist_ok=True)
-        cv2.imwrite(os.path.join(save_dir, filename), frame)
+        with open(os.path.join(save_dir, filename), "wb") as f:
+            f.write(img_bytes)
         logger.info(f"Saved locally (warped): {filename}")
 
     # Opt-in: save raw camera frame
     if session.save_raw and raw_frame is not None:
-        _, rbuf = cv2.imencode('.jpg', raw_frame, [cv2.IMWRITE_JPEG_QUALITY, 92])
-        raw_bytes = rbuf.tobytes()
+        raw_bytes = encode_jpeg_bytes(raw_frame, quality=92)
         raw_s3_key = f"{S3_PREFIX}/{session.game_id}/raw/{filename}"
         if not _s3_put(raw_s3_key, raw_bytes):
             raw_dir = os.path.join(project_root, "data", "sessions", session.game_id, "raw")
             os.makedirs(raw_dir, exist_ok=True)
-            cv2.imwrite(os.path.join(raw_dir, filename), raw_frame)
+            with open(os.path.join(raw_dir, filename), "wb") as f:
+                f.write(raw_bytes)
             logger.info(f"Saved locally (raw): {filename}")
 
     write_game_info()
@@ -785,43 +864,44 @@ def detect_corners_endpoint(data: AutoCornersRequest):
     Returns 4 board corner points (TL, TR, BR, BL) in original image pixel
     space — same coordinate system expected by /api/calibrate.
     """
-    global _corner_detector_model, _corner_detector_device
     try:
-        model_path = os.path.join(project_root, "models", "corner_detector.pth")
-        if not os.path.exists(model_path):
-            return JSONResponse(status_code=400,
-                content={"message": "corner_detector.pth not found. Train the corner detector first."})
-
         frame = decode_image(data.image_b64)
-
-        if _corner_detector_model is None:
-            import torch
-            if project_root not in sys.path:
-                sys.path.insert(0, project_root)
-            from src.models.corner_detector import CornerDetector
-            _corner_detector_device = 'cuda' if torch.cuda.is_available() else 'cpu'
-            ckpt = torch.load(model_path, map_location=_corner_detector_device, weights_only=False)
-            _corner_detector_model = CornerDetector(pretrained=False).to(_corner_detector_device)
-            _corner_detector_model.load_state_dict(ckpt['model_state_dict'])
-            _corner_detector_model.eval()
-            logger.info(f"Corner detector loaded (epoch {ckpt.get('epoch','?')}, device={_corner_detector_device})")
-
-        from src.models.corner_detector import predict_corners
-        corners = predict_corners(_corner_detector_model, frame, device=_corner_detector_device)
-        # corners = {top_left:[x,y], top_right:[x,y], bottom_right:[x,y], bottom_left:[x,y]}
-
-        points = [
-            {"x": corners["top_left"][0],     "y": corners["top_left"][1]},
-            {"x": corners["top_right"][0],    "y": corners["top_right"][1]},
-            {"x": corners["bottom_right"][0], "y": corners["bottom_right"][1]},
-            {"x": corners["bottom_left"][0],  "y": corners["bottom_left"][1]},
-        ]
-        logger.info(f"Corner detection: TL={points[0]}, TR={points[1]}, BR={points[2]}, BL={points[3]}")
+        points = [point_to_dict(p) for p in detect_corner_points(frame)]
         h, w = frame.shape[:2]
         return {"status": "success", "points": points, "image_width": w, "image_height": h}
+    except FileNotFoundError as e:
+        return JSONResponse(status_code=400, content={"message": str(e)})
     except Exception as e:
         logger.exception("Corner detection failed")
         return JSONResponse(status_code=500, content={"message": str(e)})
+
+
+@app.post("/api/auto_calibrate")
+def auto_calibrate_endpoint(data: AutoCornersRequest):
+    """Detect corners and immediately advance to grid correction."""
+    session.last_activity_time = time.time()
+    if session.state != CaptureState.CALIBRATING:
+        return JSONResponse(status_code=400, content={"message": "Not in CALIBRATING state"})
+    try:
+        frame = decode_image(data.image_b64)
+        points = detect_corner_points(frame)
+        result = calibrate_from_points(frame, points)
+        h, w = frame.shape[:2]
+        result.update({
+            "auto_calibrated": True,
+            "points": [point_to_dict(p) for p in points],
+            "image_width": w,
+            "image_height": h,
+        })
+        return result
+    except FileNotFoundError as e:
+        return JSONResponse(status_code=400, content={"message": str(e)})
+    except ValueError as e:
+        logger.warning(f"Auto-calibration rejected: {e}")
+        return JSONResponse(status_code=400, content={"message": str(e), "type": type(e).__name__})
+    except Exception as e:
+        logger.exception("Auto-calibration failed")
+        return JSONResponse(status_code=500, content={"message": str(e), "type": type(e).__name__})
 
 
 # ──────────────────────────── PGN Generation API ─────────────────────────────
@@ -1359,8 +1439,7 @@ def export_labeled_session(game_id: str):
                 if sq not in patches:
                     continue
                 patch = patches[sq]
-                _, patch_buf = cv2.imencode('.jpg', patch, [cv2.IMWRITE_JPEG_QUALITY, 92])
-                zf.writestr(f"{piece_class}/{game_id}_{frame_idx}_{sq}.jpg", patch_buf.tobytes())
+                zf.writestr(f"{piece_class}/{game_id}_{frame_idx}_{sq}.jpg", encode_jpeg_bytes(patch, quality=92))
                 total_patches += 1
 
     buf.seek(0)

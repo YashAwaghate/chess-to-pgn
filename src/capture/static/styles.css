@@ -1,15 +1,36 @@
 :root {
-    --bg-color: #0d1117;
-    --panel-bg: rgba(22, 27, 34, 0.7);
-    --border-color: rgba(48, 54, 61, 0.8);
-    --text-main: #c9d1d9;
-    --text-muted: #8b949e;
-    --accent: #58a6ff;
-    --accent-hover: #1f6feb;
-    --success: #2ea043;
-    --danger: #da3633;
-    --moving: #d29922;
-    --border-radius: 12px;
+    --bg-color: #080b10;
+    --bg-raised: #0d1117;
+    --panel-bg: #1a2438;
+    --panel-bg-2: #111928;
+    --border-color: #2d3a50;
+    --border-subtle: #1e2a3d;
+    --text-main: #cbd5e1;
+    --text-muted: #7c8fa6;
+    --text-faint: #3d4f63;
+    --text-white: #f1f5f9;
+    --accent: #3b82f6;
+    --accent-hover: #2563eb;
+    --accent-subtle: rgba(59, 130, 246, 0.14);
+    --success: #22c55e;
+    --success-subtle: rgba(34, 197, 94, 0.14);
+    --danger: #ef4444;
+    --danger-subtle: rgba(239, 68, 68, 0.12);
+    --moving: #f59e0b;
+    --moving-subtle: rgba(245, 158, 11, 0.14);
+    --board-light: #f0d9b5;
+    --board-dark: #b58863;
+    --font-sans: 'Space Grotesk', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Consolas', 'Menlo', monospace;
+    --border-radius-sm: 4px;
+    --border-radius-md: 6px;
+    --border-radius-lg: 10px;
+    --border-radius: 14px;
+    --shadow-sm: 0 1px 6px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.55);
+    --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.65);
 }
 
 * {
@@ -19,39 +40,83 @@
 }
 
 body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: var(--font-sans);
     background-color: var(--bg-color);
     color: var(--text-main);
     min-height: 100vh;
     display: flex;
     justify-content: center;
-    background-image: radial-gradient(circle at 50% 0%, #1c2128 0%, transparent 70%);
+    background-image: radial-gradient(ellipse 80% 40% at 50% 0%, rgba(59, 130, 246, 0.06) 0%, transparent 70%);
     -webkit-text-size-adjust: 100%;
+    -webkit-font-smoothing: antialiased;
 }
 
 .container {
     width: 100%;
-    max-width: 1400px;
-    padding: 1.5rem;
+    max-width: 1360px;
+    padding: 0 1.5rem 2rem;
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
 }
 
 /* ── Header ──────────────────────────────────────────────── */
+.app-header,
 header {
     background: var(--panel-bg);
-    backdrop-filter: blur(10px);
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
-    padding: 1rem 1.5rem;
+    padding: 0.9rem 1.5rem;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    margin-top: 1rem;
+    box-shadow: var(--shadow-sm);
 }
 
 .header-content {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    gap: 0.75rem;
+    gap: 1rem;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-width: 0;
+}
+
+.logo-glyph {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--border-radius-lg);
+    background: var(--accent-subtle);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent);
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.logo-text {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-white);
+    letter-spacing: 0;
+    line-height: 1.15;
+}
+
+.logo-sub {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    line-height: 1.2;
+}
+
+.header-spacer {
+    flex: 1;
 }
 
 .header-links {
@@ -63,36 +128,106 @@ header {
 h1 {
     font-size: 1.4rem;
     font-weight: 600;
-    letter-spacing: -0.05em;
-    background: linear-gradient(90deg, #fff, #8b949e);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    letter-spacing: 0;
+    color: var(--text-white);
 }
 
 /* ── Status badge ─────────────────────────────────────────── */
 .status-badge {
-    padding: 0.4rem 0.9rem;
-    border-radius: 20px;
-    font-weight: 600;
-    font-size: 0.8rem;
+    padding: 0.3rem 0.85rem;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.72rem;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.08em;
     transition: all 0.3s ease;
-    background: var(--border-color);
-    color: white;
+    background: var(--panel-bg-2);
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
 }
 
-.status-badge.static      { background: rgba(46, 160, 67, 0.2);   color: var(--success); border: 1px solid var(--success); }
-.status-badge.moving      { background: rgba(210, 153, 34, 0.2);  color: var(--moving);  border: 1px solid var(--moving); }
+.status-badge.static      { background: var(--success-subtle); color: var(--success); border: 1px solid var(--success); }
+.status-badge.moving      { background: var(--moving-subtle);  color: var(--moving);  border: 1px solid var(--moving); }
 .status-badge.orientation,
-.status-badge.grid_correction { background: rgba(88, 166, 255, 0.2);  color: var(--accent);  border: 1px solid var(--accent); }
+.status-badge.grid_correction { background: var(--accent-subtle); color: var(--accent); border: 1px solid var(--accent); }
 .status-badge.setup,
-.status-badge.calibrating { background: var(--border-color); color: white; }
+.status-badge.calibrating { background: var(--panel-bg-2); color: var(--text-muted); }
+
+.step-track {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 0.1rem 0 0.35rem;
+}
+
+.step-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+}
+
+.step-dot {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+    border: 2px solid var(--border-color);
+    color: var(--text-faint);
+    background: var(--panel-bg-2);
+    transition: all 0.3s;
+}
+
+.step-dot.done {
+    background: var(--success);
+    border-color: var(--success);
+    color: #fff;
+}
+
+.step-dot.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.4);
+}
+
+.step-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 5px;
+    text-align: center;
+    transition: color 0.3s;
+}
+
+.step-label.active { color: var(--accent); }
+.step-label.done { color: var(--success); }
+
+.step-line {
+    width: 44px;
+    height: 2px;
+    background: var(--border-color);
+    flex-shrink: 0;
+    margin: 0 0.15rem 1.2rem;
+    transition: background 0.3s;
+}
+
+.step-line.done {
+    background: var(--success);
+}
 
 /* ── Game panel layout ────────────────────────────────────── */
 main {
     display: grid;
-    grid-template-columns: 1fr 320px;
+    grid-template-columns: 1fr 300px;
     gap: 1.25rem;
     align-items: start;
 }
@@ -111,7 +246,7 @@ main {
     border-radius: var(--border-radius);
     overflow: hidden;
     border: 1px solid var(--border-color);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    box-shadow: var(--shadow-lg);
     aspect-ratio: 4/3;
     touch-action: none;   /* prevent scroll interference during drag */
 }
@@ -154,7 +289,7 @@ main {
 .calibration-menu {
     position: static;
     border: 1px solid var(--border-color);
-    border-radius: 8px;
+    border-radius: var(--border-radius-lg);
 }
 
 .cal-menu-toggle {
@@ -165,7 +300,7 @@ main {
     z-index: 24;
     min-height: 44px;
     padding: 0 0.9rem;
-    border: 1px solid rgba(255,255,255,0.22);
+    border: 1px solid rgba(255, 255, 255, 0.22);
     border-radius: 999px;
     background: rgba(0, 0, 0, 0.72);
     color: #fff;
@@ -184,25 +319,26 @@ main {
 .sidebar {
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
+    gap: 1rem;
 }
 
 /* ── Panels ───────────────────────────────────────────────── */
 .panel {
     background: var(--panel-bg);
-    backdrop-filter: blur(10px);
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
-    padding: 1.25rem;
+    padding: 1.15rem 1.25rem;
 }
 
 .panel h2 {
-    font-size: 1rem;
-    font-weight: 600;
-    color: white;
-    margin-bottom: 1rem;
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: 0.45rem;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    margin-bottom: 0.85rem;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 0.5rem;
 }
 
 .info-row {
@@ -215,7 +351,7 @@ main {
 }
 
 .info-row .label { color: var(--text-muted); font-size: 0.88rem; white-space: nowrap; }
-.info-row .value { font-family: monospace; font-size: 1rem; color: white; text-align: right; }
+.info-row .value { font-family: var(--font-mono); font-size: 0.92rem; color: var(--text-white); text-align: right; }
 .info-row .value.small { font-size: 0.78rem; word-break: break-all; }
 
 /* ── Motion debug ─────────────────────────────────────────── */
@@ -239,17 +375,18 @@ main {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 0.55rem 1.1rem;
+    padding: 0.6rem 1.2rem;
     min-height: 40px;
-    border-radius: 6px;
+    border-radius: var(--border-radius-md);
     border: none;
     font-family: inherit;
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 0.88rem;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.18s;
     white-space: nowrap;
     -webkit-tap-highlight-color: transparent;
+    text-decoration: none;
 }
 
 .btn:disabled {
@@ -261,32 +398,36 @@ main {
 .btn.primary:not(:disabled):hover  { background: var(--accent-hover); }
 .btn.primary:not(:disabled):active { background: var(--accent-hover); filter: brightness(0.9); }
 
-.btn.secondary            { background: var(--border-color); color: white; }
-.btn.secondary:hover      { background: #4b535d; }
+.btn.secondary            { background: var(--panel-bg-2); color: var(--text-main); border: 1px solid var(--border-color); }
+.btn.secondary:hover      { background: rgba(48, 58, 74, 0.5); }
 
 .btn.danger               { background: transparent; border: 1px solid var(--danger); color: var(--danger); }
-.btn.danger:hover         { background: rgba(218, 54, 51, 0.1); }
+.btn.danger:hover         { background: var(--danger-subtle); }
 
-.btn.large                { padding: 0.75rem 2rem; font-size: 1rem; border-radius: 8px; min-height: 48px; }
-.btn.small                { padding: 0.3rem 0.65rem; font-size: 0.8rem; min-height: 30px; }
+.btn.large                { padding: 0.8rem 2rem; font-size: 1rem; border-radius: var(--border-radius-lg); min-height: 50px; }
+.btn.small                { padding: 0.3rem 0.7rem; font-size: 0.78rem; min-height: 30px; border-radius: var(--border-radius-md); }
 .full-width               { width: 100%; }
 
 /* ── Setup panel ──────────────────────────────────────────── */
 .setup-panel {
     background: var(--panel-bg);
-    backdrop-filter: blur(10px);
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
-    padding: 1.75rem;
+    padding: 2.5rem 2.75rem;
+    width: 100%;
+    max-width: 520px;
+    align-self: center;
+    box-shadow: var(--shadow-lg);
 }
 
 .setup-panel h2 {
-    font-size: 1.25rem;
+    font-size: 1.5rem;
     font-weight: 700;
-    color: white;
+    color: var(--text-white);
     margin-bottom: 1.4rem;
-    padding-bottom: 0.65rem;
-    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0;
+    border-bottom: none;
+    letter-spacing: 0;
 }
 
 .setup-grid {
@@ -303,20 +444,20 @@ main {
 }
 
 .form-group label {
-    font-size: 0.78rem;
+    font-size: 0.72rem;
     font-weight: 600;
     color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.07em;
 }
 
 .form-group input,
 .form-group select {
-    background: rgba(255,255,255,0.05);
+    background: rgba(255,255,255,0.04);
     border: 1px solid var(--border-color);
-    border-radius: 6px;
-    padding: 0.6rem 0.8rem;
-    color: var(--text-main);
+    border-radius: var(--border-radius-lg);
+    padding: 0.7rem 0.9rem;
+    color: var(--text-white);
     font-family: inherit;
     font-size: 1rem;
     min-height: 44px;
@@ -335,7 +476,7 @@ main {
 
 .form-group input::placeholder { color: var(--text-muted); }
 .form-group input:focus,
-.form-group select:focus        { border-color: var(--accent); }
+.form-group select:focus        { border-color: var(--accent); background: rgba(59,130,246,0.04); }
 .form-group input.input-error   { border-color: var(--danger); }
 .form-group select option       { background: #1c2128; }
 
@@ -362,9 +503,9 @@ main {
 .result-display {
     margin-top: 0.75rem;
     padding: 0.6rem 0.8rem;
-    background: rgba(46, 160, 67, 0.15);
+    background: var(--success-subtle);
     border: 1px solid var(--success);
-    border-radius: 6px;
+    border-radius: var(--border-radius-md);
     color: var(--success);
     font-size: 0.88rem;
     font-weight: 600;
@@ -385,14 +526,14 @@ main {
     font-size: 0.82rem;
     padding: 0.6rem 0.4rem;
     min-height: 44px;
-    border-radius: 6px;
+    border-radius: var(--border-radius-md);
     transition: all 0.2s;
 }
 
 .orient-btn:hover { background: rgba(255,255,255,0.12); }
 .orient-btn.selected {
     border-color: var(--accent);
-    background: rgba(88,166,255,0.15);
+    background: var(--accent-subtle);
     color: var(--accent);
     font-weight: 600;
 }
@@ -434,8 +575,8 @@ main.cal-fullscreen .calibration-menu {
 .pgn-screen {
     position: fixed;
     inset: 0;
-    background: rgba(13, 17, 23, 0.92);
-    backdrop-filter: blur(8px);
+    background: rgba(8, 11, 16, 0.9);
+    backdrop-filter: blur(10px);
     z-index: 100;
     display: flex;
     align-items: center;
@@ -450,11 +591,11 @@ main.cal-fullscreen .calibration-menu {
     background: var(--panel-bg);
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
-    padding: 1.75rem;
+    padding: 2rem;
     display: flex;
     flex-direction: column;
-    gap: 1rem;
-    box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+    gap: 1.25rem;
+    box-shadow: var(--shadow-xl);
 }
 
 .pgn-card h2 {
@@ -478,10 +619,10 @@ main.cal-fullscreen .calibration-menu {
     min-height: 220px;
     background: rgba(0,0,0,0.5);
     border: 1px solid var(--border-color);
-    border-radius: 6px;
+    border-radius: var(--border-radius-md);
     padding: 0.8rem;
     color: var(--text-main);
-    font-family: 'Consolas', 'Menlo', monospace;
+    font-family: var(--font-mono);
     font-size: 0.85rem;
     resize: vertical;
     outline: none;
@@ -511,16 +652,49 @@ main.cal-fullscreen .calibration-menu {
 /* ── Mobile responsive ────────────────────────────────────── */
 @media (max-width: 768px) {
     .container {
-        padding: 0.65rem;
+        padding: 0 0.75rem 1.5rem;
         gap: 0.75rem;
     }
 
     header {
         padding: 0.65rem 0.9rem;
+        margin-top: 0.75rem;
     }
 
-    h1 {
-        font-size: 1.15rem;
+    .logo-glyph {
+        width: 30px;
+        height: 30px;
+    }
+
+    .logo-text {
+        font-size: 0.95rem;
+    }
+
+    .logo-sub {
+        display: none;
+    }
+
+    .header-content {
+        gap: 0.55rem;
+    }
+
+    .header-links {
+        gap: 0.35rem;
+    }
+
+    .step-track {
+        overflow-x: auto;
+        justify-content: flex-start;
+        padding: 0 0.15rem 0.2rem;
+        scrollbar-width: none;
+    }
+
+    .step-track::-webkit-scrollbar {
+        display: none;
+    }
+
+    .step-line {
+        width: 28px;
     }
 
     main {
@@ -584,7 +758,8 @@ main.cal-fullscreen .calibration-menu {
     }
 
     .setup-panel {
-        padding: 1.1rem;
+        padding: 1.75rem 1.5rem;
+        max-width: 100%;
     }
 
     .setup-grid {
@@ -620,8 +795,9 @@ main.cal-fullscreen .calibration-menu {
         grid-template-columns: 1fr;
     }
 
-    h1 {
-        font-size: 1rem;
+    .header-links .btn {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
     }
 
     .status-badge {
@@ -641,7 +817,7 @@ main.cal-fullscreen .calibration-menu {
 
 .board-preview-container img {
     width: 100%;
-    border-radius: 6px;
+    border-radius: var(--border-radius-md);
     display: block;
 }
 
@@ -655,7 +831,7 @@ main.cal-fullscreen .calibration-menu {
     font-size: 0.75rem;
     font-weight: 600;
     padding: 0.2rem 0.5rem;
-    border-radius: 8px;
+    border-radius: var(--border-radius-md);
 }
 
 /* ── PGN result screen — wide card + two-column layout ─────── */
@@ -696,7 +872,7 @@ main.cal-fullscreen .calibration-menu {
     width: 288px;
     height: 288px;
     border: 2px solid var(--border-color);
-    border-radius: 4px;
+    border-radius: var(--border-radius-sm);
     overflow: hidden;
     flex-shrink: 0;
 }
@@ -712,8 +888,8 @@ main.cal-fullscreen .calibration-menu {
     transition: outline 0.1s;
 }
 
-.board-cell.light     { background: #f0d9b5; color: #1a1a1a; }
-.board-cell.dark      { background: #b58863; color: #1a1a1a; }
+.board-cell.light     { background: var(--board-light); color: #1a1a1a; }
+.board-cell.dark      { background: var(--board-dark); color: #1a1a1a; }
 .board-cell.highlight { outline: 3px solid rgba(255, 215, 0, 0.85); outline-offset: -3px; }
 
 .board-nav {
@@ -734,10 +910,10 @@ main.cal-fullscreen .calibration-menu {
     width: 100%;
     background: rgba(0, 0, 0, 0.4);
     border: 1px solid var(--border-color);
-    border-radius: 4px;
+    border-radius: var(--border-radius-sm);
     padding: 0.3rem 0.45rem;
     color: var(--text-muted);
-    font-family: 'Consolas', 'Menlo', monospace;
+    font-family: var(--font-mono);
     font-size: 0.68rem;
     outline: none;
     cursor: text;
@@ -755,7 +931,7 @@ main.cal-fullscreen .calibration-menu {
     overflow-y: auto;
     background: rgba(0, 0, 0, 0.3);
     border: 1px solid var(--border-color);
-    border-radius: 6px;
+    border-radius: var(--border-radius-md);
     padding: 0.45rem 0.5rem;
     display: flex;
     flex-direction: column;
@@ -784,7 +960,7 @@ main.cal-fullscreen .calibration-menu {
 
 .move-san {
     flex: 1;
-    font-family: 'Consolas', 'Menlo', monospace;
+    font-family: var(--font-mono);
     color: var(--text-main);
 }
 
