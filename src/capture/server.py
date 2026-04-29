@@ -11,6 +11,7 @@ import base64
 import json
 import logging
 import sys
+import math
 from datetime import date
 from enum import Enum
 from fastapi import FastAPI
@@ -131,6 +132,7 @@ elif S3_BUCKET and not _s3_client:
     logger.warning("S3_BUCKET is set but boto3 client failed to initialise — uploads will be skipped.")
 else:
     logger.warning("S3 not configured (S3_BUCKET env var missing) — images will be saved locally only.")
+logger.info(f"Runtime vision stack: cv2={cv2.__version__}, numpy={np.__version__}")
 
 
 # ──────────────────────────── Pydantic models ────────────────────────────────
@@ -146,8 +148,12 @@ class GameSetupData(BaseModel):
     notes:        Optional[str] = ""
     save_raw:     Optional[bool] = False
 
+class Point2D(BaseModel):
+    x: float
+    y: float
+
 class CalibrationData(BaseModel):
-    points:    list[dict]
+    points:    list[Point2D]
     image_b64: str
 
 class OrientationData(BaseModel):
@@ -195,6 +201,32 @@ def decode_image(b64: str) -> np.ndarray:
     bgr = rgb[:, :, ::-1].copy()  # RGB→BGR via slice (no cv2 needed)
     logger.info(f"decode_image OK: shape={bgr.shape}, dtype={bgr.dtype}")
     return bgr
+
+def calibration_points_to_array(points: list[Point2D], frame_shape: tuple[int, ...]) -> np.ndarray:
+    """Return 4 finite frame-space points as a C-contiguous float32 ndarray."""
+    if len(points) != 4:
+        raise ValueError(f"Calibration requires exactly 4 points; received {len(points)}")
+
+    h, w = frame_shape[:2]
+    coords = []
+    for idx, p in enumerate(points):
+        x = float(p.x)
+        y = float(p.y)
+        if not (math.isfinite(x) and math.isfinite(y)):
+            raise ValueError(f"Calibration point {idx + 1} is not finite: ({x}, {y})")
+        if x < 0 or y < 0 or x > w or y > h:
+            raise ValueError(
+                f"Calibration point {idx + 1} is outside the camera frame: "
+                f"({x:.1f}, {y:.1f}) for {w}x{h}"
+            )
+        coords.append([x, y])
+
+    src = np.array(coords, dtype=np.float32, order="C")
+    if src.shape != (4, 2):
+        raise ValueError(f"Calibration points must have shape (4, 2); got {src.shape}")
+    if cv2.contourArea(src.reshape(-1, 1, 2)) < 100.0:
+        raise ValueError("Calibration points are too close together to define a board")
+    return src
 
 def encode_image(img: np.ndarray) -> str:
     _, buf = cv2.imencode('.jpg', img)
@@ -327,13 +359,16 @@ def calibrate(data: CalibrationData):
     if session.state != CaptureState.CALIBRATING:
         return JSONResponse(status_code=400, content={"message": "Not in CALIBRATING state"})
     try:
-        src   = np.ascontiguousarray([[p['x'], p['y']] for p in data.points], dtype=np.float32)
-        dst   = np.ascontiguousarray([[0,0],[400,0],[400,400],[0,400]], dtype=np.float32)
         frame = decode_image(data.image_b64)
-        logger.info(f"calibrate: src dtype={src.dtype}, shape={src.shape}, contig={src.flags['C_CONTIGUOUS']}")
+        src   = calibration_points_to_array(data.points, frame.shape)
+        dst   = np.array([[0,0],[400,0],[400,400],[0,400]], dtype=np.float32, order="C")
+        logger.info(
+            "calibrate: src type=%s dtype=%s shape=%s contig=%s values=%s",
+            type(src).__name__, src.dtype, src.shape, src.flags['C_CONTIGUOUS'], src.tolist()
+        )
 
         session.perspective_matrix = cv2.getPerspectiveTransform(src, dst)
-        session.board_corners      = [[p['x'], p['y']] for p in data.points]
+        session.board_corners      = src.astype(float).tolist()
 
         warped = cv2.warpPerspective(frame, session.perspective_matrix, (BOARD_SIZE, BOARD_SIZE))
         session.warped_setup_frame = warped.copy()
@@ -344,6 +379,9 @@ def calibrate(data: CalibrationData):
         logger.info(f"Grid — x: {grid['x_lines']}, y: {grid['y_lines']}")
 
         return {"status": "success", "warped_b64": encode_image(warped), "grid": grid}
+    except ValueError as e:
+        logger.warning(f"Calibration rejected: {e}")
+        return JSONResponse(status_code=400, content={"message": str(e), "type": type(e).__name__})
     except Exception as e:
         import traceback
         logger.error(f"Calibration error: {e}\n{traceback.format_exc()}")

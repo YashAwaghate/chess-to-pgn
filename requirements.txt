@@ -3,7 +3,9 @@ fastapi>=0.110
 uvicorn>=0.29
 
 # Computer vision
-opencv-python-headless==4.10.0.84
+# MediaPipe depends on opencv-contrib-python. Pin that exact wheel so the app
+# does not install competing cv2 packages with different ABI expectations.
+opencv-contrib-python==4.10.0.84
 mediapipe>=0.10.0
 
 # AWS

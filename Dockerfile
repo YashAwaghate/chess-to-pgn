@@ -22,6 +22,7 @@ RUN pip uninstall -y opencv-python opencv-python-headless opencv-contrib-python 
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+RUN python -c "import cv2, numpy as np; print('cv2', cv2.__version__, 'numpy', np.__version__); assert cv2.__version__.startswith('4.10.'), cv2.__version__"
 
 # Copy application source AND trained models
 COPY src/ ./src/
