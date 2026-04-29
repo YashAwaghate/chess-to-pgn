@@ -224,9 +224,41 @@ def calibration_points_to_array(points: list[Point2D], frame_shape: tuple[int, .
     src = np.array(coords, dtype=np.float32, order="C")
     if src.shape != (4, 2):
         raise ValueError(f"Calibration points must have shape (4, 2); got {src.shape}")
-    if cv2.contourArea(src.reshape(-1, 1, 2)) < 100.0:
+    if polygon_area(src) < 100.0:
         raise ValueError("Calibration points are too close together to define a board")
     return src
+
+def polygon_area(points: np.ndarray) -> float:
+    """Shoelace polygon area for ordered 2D points, avoiding cv2 contour overloads."""
+    x = points[:, 0].astype(np.float64)
+    y = points[:, 1].astype(np.float64)
+    return float(abs(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1))) * 0.5)
+
+def perspective_transform_from_points(src: np.ndarray, dst: np.ndarray) -> np.ndarray:
+    """Compute a 3x3 homography from four point pairs without cv2 point APIs."""
+    src64 = np.asarray(src, dtype=np.float64)
+    dst64 = np.asarray(dst, dtype=np.float64)
+    if src64.shape != (4, 2) or dst64.shape != (4, 2):
+        raise ValueError(f"Perspective transform expects (4, 2) points; got {src64.shape} and {dst64.shape}")
+
+    rows = []
+    vals = []
+    for (x, y), (u, v) in zip(src64, dst64):
+        rows.append([x, y, 1.0, 0.0, 0.0, 0.0, -u * x, -u * y])
+        vals.append(u)
+        rows.append([0.0, 0.0, 0.0, x, y, 1.0, -v * x, -v * y])
+        vals.append(v)
+
+    try:
+        coeffs = np.linalg.solve(np.array(rows, dtype=np.float64), np.array(vals, dtype=np.float64))
+    except np.linalg.LinAlgError as exc:
+        raise ValueError("Calibration points are degenerate; drag the four corners farther apart") from exc
+
+    return np.array([
+        [coeffs[0], coeffs[1], coeffs[2]],
+        [coeffs[3], coeffs[4], coeffs[5]],
+        [coeffs[6], coeffs[7], 1.0],
+    ], dtype=np.float64)
 
 def encode_image(img: np.ndarray) -> str:
     _, buf = cv2.imencode('.jpg', img)
@@ -367,7 +399,7 @@ def calibrate(data: CalibrationData):
             type(src).__name__, src.dtype, src.shape, src.flags['C_CONTIGUOUS'], src.tolist()
         )
 
-        session.perspective_matrix = cv2.getPerspectiveTransform(src, dst)
+        session.perspective_matrix = perspective_transform_from_points(src, dst)
         session.board_corners      = src.astype(float).tolist()
 
         warped = cv2.warpPerspective(frame, session.perspective_matrix, (BOARD_SIZE, BOARD_SIZE))
