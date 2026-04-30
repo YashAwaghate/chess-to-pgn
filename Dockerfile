@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libxext6 \
         libgles2 \
         libegl1 \
+        curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -27,6 +28,18 @@ RUN python -c "import cv2, numpy as np; print('cv2', cv2.__version__, 'numpy', n
 # Copy application source AND trained models
 COPY src/ ./src/
 COPY models/ ./models/
+
+# Download corner detector model from S3 if not present in build context.
+# Set CORNER_MODEL_URL as a Railway build variable:
+#   https://<bucket>.s3.<region>.amazonaws.com/models/corner_detector.pth
+ARG CORNER_MODEL_URL=""
+RUN if [ -n "$CORNER_MODEL_URL" ]; then \
+        echo "Downloading corner_detector.pth from S3..." && \
+        curl -fsSL -o models/corner_detector.pth "$CORNER_MODEL_URL" && \
+        echo "Downloaded $(du -sh models/corner_detector.pth | cut -f1)"; \
+    else \
+        echo "CORNER_MODEL_URL not set — skipping corner model download"; \
+    fi
 
 # Writable runtime dirs
 RUN mkdir -p data/sessions logs

@@ -174,8 +174,8 @@ function getFrameBase64() {
 // dragIdx 0-3 = corners (TL,TR,BR,BL), 4-7 = edges (top,right,bottom,left).
 // Hit detection uses display pixels so the target is consistent at any resolution.
 
-const HIT_R_CORNER = 34;  // display px hit radius for corners
-const HIT_R_EDGE   = 28;  // display px hit radius for edge midpoints
+const HIT_R_CORNER = 22;  // display px hit radius for corners
+const HIT_R_EDGE   = 18;  // display px hit radius for edge midpoints
 let cropBox = null;
 let dragIdx = -1;
 let autoDetectHighlightUntil = 0;
@@ -183,9 +183,9 @@ let autoDetectHighlightUntil = 0;
 function defaultCropBox() {
     const w = overlayCanvas.width  || 640;
     const h = overlayCanvas.height || 480;
-    // 22% margin each side → box is 56% of frame, corners well inside the view
-    const mx = w * 0.22;
-    const my = h * 0.22;
+    // 30% margin each side → box is 40% of frame, well away from edges
+    const mx = w * 0.30;
+    const my = h * 0.30;
     return [
         { x: mx,     y: my },       // 0 TL
         { x: w - mx, y: my },       // 1 TR
@@ -227,8 +227,8 @@ function drawCropBox() {
 
     const { x: sx, y: sy } = getCanvasScale();
     // Handle draw radii in canvas pixels (≈ target display px)
-    const cornerR = 13 * Math.max(sx, sy);
-    const edgeR   =  9 * Math.max(sx, sy);
+    const cornerR = 8 * Math.max(sx, sy);
+    const edgeR   = 5 * Math.max(sx, sy);
     const autoDetected = performance.now() < autoDetectHighlightUntil;
 
     // ── Quad fill + outline ───────────────────────────────────────────────────
