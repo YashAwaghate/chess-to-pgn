@@ -222,7 +222,7 @@ class ChessPieceClassifier:
     Bayesian prior in move_detector.detect_move_with_prior().
     """
 
-    def __init__(self, model_path='models/chess_piece_classifier.pth', device=None,
+    def __init__(self, model_path='models/chess_piece_classifier_v2.pth', device=None,
                  temperature: float = 1.0, tta_views: int = 1):
         if device is None:
             device = 'cuda' if torch.cuda.is_available() else 'cpu'

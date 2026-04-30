@@ -378,6 +378,86 @@ def detect_moves_sequence_with_prior(
             'errors': errors, 'skipped': skipped}
 
 
+def _argmax_fen_from_probs(full_probs: dict) -> str:
+    """Return the position-only FEN for a frame's 64-square softmax output."""
+    return fen_position_only(predictions_to_fen({
+        sq: (FEN_CLASSES[int(np.argmax(p))], float(p[int(np.argmax(p))]))
+        for sq, p in full_probs.items()
+    }))
+
+
+def project_legal_state_sequence(
+    frames_full_probs: list,
+    prior_weight: float = 1.0,
+) -> dict:
+    """Project frame softmaxes onto a legal board-state sequence.
+
+    This is the production-friendly form of the legal-state projection that
+    scored much higher exact-board accuracy in autoresearch. It preserves one
+    FEN per frame, but replaces noisy per-frame argmax boards with the board
+    state reached by the best legal Bayesian move whenever a change is detected.
+
+    Returns a dict compatible with `detect_moves_sequence_with_prior`, plus:
+      - fen_sequence: projected legal FEN position for each frame
+      - raw_fen_sequence: raw argmax FEN position for each frame
+      - move_frame_indices: frame indices where a move was accepted
+    """
+    if not frames_full_probs:
+        return {
+            'moves': [], 'move_tags': [], 'board': chess.Board(),
+            'errors': [], 'skipped': 0,
+            'fen_sequence': [], 'raw_fen_sequence': [],
+            'move_frame_indices': [],
+        }
+
+    board = chess.Board()
+    moves, move_tags, errors = [], [], []
+    skipped = 0
+    move_frame_indices = []
+
+    raw_fens = [_argmax_fen_from_probs(probs) for probs in frames_full_probs]
+    prev_pos = raw_fens[0]
+    projected_fens = [prev_pos]
+
+    for i, (probs, argmax_fen) in enumerate(zip(frames_full_probs[1:], raw_fens[1:]), start=1):
+        if argmax_fen == prev_pos:
+            skipped += 1
+            projected_fens.append(prev_pos)
+            continue
+
+        san, tag, _ = detect_move_with_prior(prev_pos, probs, board,
+                                             prior_weight=prior_weight)
+        if san is None:
+            errors.append({'index': i, 'reason': 'no_legal_moves'})
+            projected_fens.append(prev_pos)
+            continue
+
+        try:
+            move = board.parse_san(san)
+        except ValueError:
+            errors.append({'index': i, 'reason': 'invalid_san', 'san': san})
+            projected_fens.append(prev_pos)
+            continue
+
+        board.push(move)
+        moves.append(san)
+        move_tags.append(tag)
+        move_frame_indices.append(i)
+        prev_pos = board.fen().split(' ')[0]
+        projected_fens.append(prev_pos)
+
+    return {
+        'moves': moves,
+        'move_tags': move_tags,
+        'board': board,
+        'errors': errors,
+        'skipped': skipped,
+        'fen_sequence': projected_fens,
+        'raw_fen_sequence': raw_fens,
+        'move_frame_indices': move_frame_indices,
+    }
+
+
 def detect_moves_sequence(fen_positions: list, fuzzy_threshold: int = 62) -> dict:
     """Process a sequence of FEN positions and detect all moves.
 
@@ -650,8 +730,9 @@ class TemporalBoardTracker:
 
     # Confidence used to represent "we're certain this square is stable"
     STABLE_BOOST = 0.97
+    CONFIRMATION_TOLERANCE = 2
 
-    def __init__(self, prior_weight: float = 2.0):
+    def __init__(self, prior_weight: float = 1.5):
         """
         Parameters
         ----------
@@ -664,6 +745,7 @@ class TemporalBoardTracker:
         self.board = chess.Board()
         self.prior_weight = prior_weight
         self._confirmed_pos = self.board.fen().split(' ')[0]
+        self._seen_frame = False
 
     # ------------------------------------------------------------------
     # Public API
@@ -685,17 +767,33 @@ class TemporalBoardTracker:
         """
         # Fast path: argmax matches confirmed board → no move
         argmax_pos = self._argmax_pos(full_probs)
+        if not self._seen_frame:
+            self._seen_frame = True
+            if argmax_pos == self._confirmed_pos:
+                return None, 'no_change'
+            if detect_move(self._confirmed_pos, argmax_pos, self.board) is None:
+                self._confirmed_pos = argmax_pos
+                return None, 'no_change'
+
         if argmax_pos == self._confirmed_pos:
             return None, 'no_change'
 
-        adjusted = self._apply_temporal_heuristics(full_probs)
+        adjusted = full_probs
         san, tag, _ = detect_move_with_prior(
             self._confirmed_pos, adjusted, self.board,
             prior_weight=self.prior_weight,
         )
 
         if san:
-            move = self.board.parse_san(san)
+            try:
+                move = self.board.parse_san(san)
+            except ValueError:
+                return None, 'failed'
+
+            self.board.push(move)
+            candidate_pos = self.board.fen().split(' ')[0]
+            self.board.pop()
+
             self.board.push(move)
             self._confirmed_pos = self.board.fen().split(' ')[0]
 
@@ -705,6 +803,7 @@ class TemporalBoardTracker:
         """Reset to starting position."""
         self.board = chess.Board()
         self._confirmed_pos = self.board.fen().split(' ')[0]
+        self._seen_frame = False
 
     # ------------------------------------------------------------------
     # Internal helpers

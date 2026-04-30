@@ -21,8 +21,8 @@ coverage.xml
 *.log
 .gitattributes
 .DS_Store
-.ckpt
-.pth
+*.ckpt
+*.pth
 
 # Jupyter Notebooks
 .ipynb_checkpoints
@@ -38,6 +38,8 @@ coverage.xml
 *.task
 
 # Project-specific
+.claude/
+.codex/
 poster_assets/
 stats_output_model/
 scripts/
@@ -45,3 +47,10 @@ src/models/pretrained/
 training_log.txt
 demo_output/
 *.docx
+
+# Autoresearch local lab notebook
+autoresearch/results.tsv
+autoresearch/runs/
+
+# Local documentation / prep notes
+About Project/

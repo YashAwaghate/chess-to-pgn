@@ -1,0 +1,32 @@
+# Large datasets and generated outputs
+data
+htmlcov
+demo_output
+stats_output
+stats_output_model
+poster_assets
+logs
+
+# Model/checkpoint artifacts. Do not ignore src/models/*.py.
+*.pth
+*.pt
+*.ckpt
+*.onnx
+*.h5
+*.weights
+*.task
+
+# Media and bulky generated assets
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.mp4
+*.avi
+*.mov
+*.webm
+
+# Local agent/tool state
+.claude
+.codex
+.pytest_cache
