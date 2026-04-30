@@ -34,7 +34,15 @@ COPY models/ ./models/
 # Uses Python to avoid shell quoting issues with & in presigned URLs.
 ARG CORNER_MODEL_URL=""
 ENV CORNER_MODEL_URL=${CORNER_MODEL_URL}
-RUN python3 -c "import os,sys,urllib.request; u=os.environ.get('CORNER_MODEL_URL',''); d='models/corner_detector.pth'; print('No URL, skipping') or sys.exit(0) if not u else (print('Already present') or sys.exit(0) if os.path.exists(d) else (print('Downloading corner_detector.pth...'), urllib.request.urlretrieve(u,d), print(str(os.path.getsize(d)//1000000)+'MB done')))"
+RUN python3 -c "\
+import os,sys,urllib.request; \
+u=os.environ.get('CORNER_MODEL_URL',''); \
+d='models/corner_detector.pth'; \
+(print('CORNER_MODEL_URL not set, skipping') or sys.exit(0)) if not u else None; \
+(print('corner_detector.pth already present') or sys.exit(0)) if os.path.exists(d) else None; \
+print('Downloading corner_detector.pth...'); \
+[urllib.request.urlretrieve(u,d), print(str(os.path.getsize(d)//1000000)+'MB')] if True else None; \
+" || echo "WARNING: corner_detector.pth download failed — auto-calibrate will be unavailable"
 
 # Writable runtime dirs
 RUN mkdir -p data/sessions logs
