@@ -37,8 +37,9 @@ from hand_detector import HandDetector
 from process_board import determine_orientation
 
 # ── S3 (optional — only active when S3_BUCKET env var is set) ────────────────
-S3_BUCKET = os.getenv("S3_BUCKET", "")
-S3_PREFIX = os.getenv("S3_PREFIX", "sessions")
+S3_BUCKET            = os.getenv("S3_BUCKET", "")
+S3_PREFIX            = os.getenv("S3_PREFIX", "sessions")
+CORNER_MODEL_S3_KEY  = os.getenv("CORNER_MODEL_S3_KEY", "models/corner_detector.pth")
 _s3_client = None
 if S3_BUCKET:
     try:
@@ -356,13 +357,37 @@ def calibrate_from_points(frame: np.ndarray, points: list[Point2D]) -> dict:
 def point_to_dict(point: Point2D) -> dict:
     return {"x": float(point.x), "y": float(point.y)}
 
+def _ensure_corner_model() -> str:
+    """Return local path to corner_detector.pth, downloading from S3 if needed."""
+    model_path = os.path.join(project_root, "models", "corner_detector.pth")
+    if os.path.exists(model_path):
+        return model_path
+
+    if not (_s3_client and S3_BUCKET and CORNER_MODEL_S3_KEY):
+        raise FileNotFoundError(
+            "corner_detector.pth not found locally and S3 is not configured "
+            "(set S3_BUCKET + CORNER_MODEL_S3_KEY env vars)."
+        )
+
+    logger.info(f"Downloading corner_detector.pth from s3://{S3_BUCKET}/{CORNER_MODEL_S3_KEY} ...")
+    os.makedirs(os.path.dirname(model_path), exist_ok=True)
+    try:
+        _s3_client.download_file(S3_BUCKET, CORNER_MODEL_S3_KEY, model_path)
+        size_mb = os.path.getsize(model_path) / 1_000_000
+        logger.info(f"corner_detector.pth downloaded ({size_mb:.1f} MB)")
+    except Exception as e:
+        if os.path.exists(model_path):
+            os.remove(model_path)
+        raise FileNotFoundError(f"Failed to download corner_detector.pth from S3: {e}") from e
+
+    return model_path
+
+
 def detect_corner_points(frame: np.ndarray) -> list[Point2D]:
     """Run the trained model and return [TL, TR, BR, BL] points in frame pixels."""
     global _corner_detector_model, _corner_detector_device
 
-    model_path = os.path.join(project_root, "models", "corner_detector.pth")
-    if not os.path.exists(model_path):
-        raise FileNotFoundError("corner_detector.pth not found. Train the corner detector first.")
+    model_path = _ensure_corner_model()
 
     if _corner_detector_model is None:
         import torch
