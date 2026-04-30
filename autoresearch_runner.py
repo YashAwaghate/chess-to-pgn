@@ -72,6 +72,12 @@ def _default_command(args: argparse.Namespace, out_json: Path) -> list[str]:
         *[str(g) for g in args.games],
         "--tta",
         str(args.tta),
+        "--checkpoint",
+        str(args.checkpoint),
+        "--fusion",
+        str(args.fusion),
+        "--corner_source",
+        str(args.corner_source),
         "--out",
         str(out_json),
     ]
@@ -114,6 +120,10 @@ def main() -> int:
     parser.add_argument("--metric", default="tr_correctness_pct", help="Metric key under JSON totals")
     parser.add_argument("--games", nargs="*", default=DEFAULT_GAMES, help="ChessReD game ids to evaluate")
     parser.add_argument("--tta", type=int, default=1, help="TTA views for faster autoresearch loops")
+    parser.add_argument("--checkpoint", default="models/chess_piece_classifier_v2.pth", help="Classifier checkpoint")
+    parser.add_argument("--fusion", default="none", choices=["none", "gt_fen"], help="Softmax fusion mode")
+    parser.add_argument("--corner-source", dest="corner_source", default="auto_prefer",
+                        choices=["current", "auto", "auto_prefer"], help="Corner source for pipeline eval")
     parser.add_argument("--timeout", type=int, default=900, help="Maximum seconds before marking crash")
     parser.add_argument(
         "--command",

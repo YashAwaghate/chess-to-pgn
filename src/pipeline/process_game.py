@@ -4,8 +4,8 @@ End-to-end pipeline: process a captured game session into PGN.
   S3 session folder → load images → crop squares → classify → FEN → moves → PGN
 
 Usage:
-  python -m src.pipeline.process_game --game_id <id> --model_path models/chess_piece_classifier.pth
-  python -m src.pipeline.process_game --local_dir /path/to/session --model_path models/chess_piece_classifier.pth
+  python -m src.pipeline.process_game --game_id <id> --model_path models/chess_piece_classifier_v2.pth
+  python -m src.pipeline.process_game --local_dir /path/to/session --model_path models/chess_piece_classifier_v2.pth
 """
 
 import os
@@ -21,7 +21,11 @@ FEN_CLASSES = ['empty','P','N','B','R','Q','K','p','n','b','r','q','k']
 from src.preprocessing.process_board import crop_squares_from_grid
 from src.models.inference import ChessPieceClassifier, PretrainedBoardClassifier
 from src.pipeline.fen_generator import predictions_to_fen, fen_position_only
-from src.pipeline.move_detector import detect_moves_sequence, detect_moves_sequence_with_prior
+from src.pipeline.move_detector import (
+    detect_moves_sequence,
+    detect_moves_sequence_with_prior,
+    project_legal_state_sequence,
+)
 from src.pipeline.pgn_generator import generate_pgn, save_pgn
 
 
@@ -132,7 +136,7 @@ def load_session_from_s3(game_id: str, bucket: str = None) -> dict:
 
 
 def process_game_session(game_id: str = None, local_dir: str = None,
-                         model_path: str = 'models/chess_piece_classifier.pth',
+                         model_path: str = 'models/chess_piece_classifier_v2.pth',
                          s3_bucket: str = None, result: str = '*',
                          fuzzy_threshold: int = 62,
                          classifier: str = 'patch') -> dict:
@@ -232,23 +236,19 @@ def process_game_session(game_id: str = None, local_dir: str = None,
     overall_avg = sum(c['avg'] for c in all_confidences) / len(all_confidences) if all_confidences else 0.0
     print(f"Classifier confidence: avg={overall_avg:.3f} over {len(images)} images")
 
-    # 5. Detect moves using Bayesian prior (production decoder, 87.9% on 40-game eval)
-    print("Detecting moves (Bayesian decoder)...")
-    move_result = detect_moves_sequence_with_prior(frames_full_probs)
+    # 5. Project frames through legal Bayesian states and detect moves.
+    print("Projecting legal board states and detecting moves (Bayesian decoder)...")
+    move_result = project_legal_state_sequence(frames_full_probs)
 
     moves     = move_result['moves']
     move_tags = move_result['move_tags']
     errors    = move_result['errors']
     skipped   = move_result['skipped']
+    legal_fen_sequence = move_result['fen_sequence']
+    raw_fen_sequence = move_result['raw_fen_sequence']
 
     # Build per-move confidence: avg confidence of the frame that produced each move
-    move_frame_indices = []
-    frame_idx = 0
-    prev_pos  = fen_sequence[0] if fen_sequence else ''
-    for j in range(1, len(fen_sequence)):
-        if fen_sequence[j] != prev_pos:
-            move_frame_indices.append(j)
-            prev_pos = fen_sequence[j]
+    move_frame_indices = move_result.get('move_frame_indices', [])
     move_confidences = [
         round(all_confidences[idx]['avg'], 3) if idx < len(all_confidences) else 0.0
         for idx in move_frame_indices[:len(moves)]
@@ -265,11 +265,12 @@ def process_game_session(game_id: str = None, local_dir: str = None,
         'moves':              moves,
         'move_tags':          move_tags,
         'move_confidences':   move_confidences,
-        'fen_sequence':       fen_sequence,
+        'fen_sequence':       legal_fen_sequence,
+        'raw_fen_sequence':   raw_fen_sequence,
         'errors':             errors,
         'skipped':            skipped,
         'overall_confidence': round(overall_avg, 3),
-        'decoder':            'bayesian',
+        'decoder':            'bayesian_legal_state_projection',
     }
 
 
@@ -277,7 +278,7 @@ def main():
     parser = argparse.ArgumentParser(description='Process a chess game session into PGN')
     parser.add_argument('--game_id', help='S3 session game ID')
     parser.add_argument('--local_dir', help='Local session directory')
-    parser.add_argument('--model_path', default='models/chess_piece_classifier.pth')
+    parser.add_argument('--model_path', default='models/chess_piece_classifier_v2.pth')
     parser.add_argument('--s3_bucket', help='S3 bucket name')
     parser.add_argument('--result', default='*', help='Game result (1-0, 0-1, 1/2-1/2, *)')
     parser.add_argument('--output', help='Output PGN file path')

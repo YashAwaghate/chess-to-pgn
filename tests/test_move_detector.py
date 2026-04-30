@@ -24,6 +24,7 @@ from src.pipeline.move_detector import (
     compute_consensus_predictions,
     detect_moves_sequence,
     detect_move_with_feedback,
+    project_legal_state_sequence,
 )
 
 
@@ -323,6 +324,44 @@ class TestDetectMoveWithFeedback:
         san, tag, _ = detect_move_with_feedback(STARTING_POS, preds, board)
         assert san is None
         assert tag == "failed"
+
+
+# ---------------------------------------------------------------------------
+# project_legal_state_sequence
+# ---------------------------------------------------------------------------
+
+class TestProjectLegalStateSequence:
+
+    def test_projects_noisy_argmax_to_legal_successor(self):
+        start = chess.Board()
+        after = chess.Board()
+        after.push_san("e4")
+
+        noisy_after = _board_full_probs(after)
+        noisy_after["a7"] = _probs("empty")
+        noisy_after["h1"] = _probs("empty")
+
+        result = project_legal_state_sequence([
+            _board_full_probs(start),
+            noisy_after,
+        ])
+
+        assert result["moves"] == ["e4"]
+        assert result["fen_sequence"] == [STARTING_POS, AFTER_E4_POS]
+        assert result["raw_fen_sequence"][1] != AFTER_E4_POS
+        assert result["errors"] == []
+
+    def test_keeps_one_projected_fen_per_frame_when_no_move(self):
+        start = chess.Board()
+
+        result = project_legal_state_sequence([
+            _board_full_probs(start),
+            _board_full_probs(start),
+        ])
+
+        assert result["moves"] == []
+        assert result["skipped"] == 1
+        assert result["fen_sequence"] == [STARTING_POS, STARTING_POS]
 
 
 # ---------------------------------------------------------------------------
