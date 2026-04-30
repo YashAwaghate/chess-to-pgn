@@ -29,17 +29,12 @@ RUN python -c "import cv2, numpy as np; print('cv2', cv2.__version__, 'numpy', n
 COPY src/ ./src/
 COPY models/ ./models/
 
-# Download corner detector model from S3 if not present in build context.
-# Set CORNER_MODEL_URL as a Railway build variable:
-#   https://<bucket>.s3.<region>.amazonaws.com/models/corner_detector.pth
+# Download corner detector model from S3.
+# Set CORNER_MODEL_URL as a Railway build variable (presigned S3 URL).
+# Uses Python to avoid shell quoting issues with & in presigned URLs.
 ARG CORNER_MODEL_URL=""
-RUN if [ -n "$CORNER_MODEL_URL" ]; then \
-        echo "Downloading corner_detector.pth from S3..." && \
-        curl -fsSL -o models/corner_detector.pth "$CORNER_MODEL_URL" && \
-        echo "Downloaded $(du -sh models/corner_detector.pth | cut -f1)"; \
-    else \
-        echo "CORNER_MODEL_URL not set — skipping corner model download"; \
-    fi
+ENV CORNER_MODEL_URL=${CORNER_MODEL_URL}
+RUN python3 -c "import os,sys,urllib.request; u=os.environ.get('CORNER_MODEL_URL',''); d='models/corner_detector.pth'; print('No URL, skipping') or sys.exit(0) if not u else (print('Already present') or sys.exit(0) if os.path.exists(d) else (print('Downloading corner_detector.pth...'), urllib.request.urlretrieve(u,d), print(str(os.path.getsize(d)//1000000)+'MB done')))"
 
 # Writable runtime dirs
 RUN mkdir -p data/sessions logs
