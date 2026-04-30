@@ -650,6 +650,7 @@ class TemporalBoardTracker:
 
     # Confidence used to represent "we're certain this square is stable"
     STABLE_BOOST = 0.97
+    CONFIRMATION_TOLERANCE = 2
 
     def __init__(self, prior_weight: float = 2.0):
         """
@@ -695,9 +696,21 @@ class TemporalBoardTracker:
         )
 
         if san:
-            move = self.board.parse_san(san)
+            try:
+                move = self.board.parse_san(san)
+            except ValueError:
+                return None, 'failed'
+
             self.board.push(move)
-            self._confirmed_pos = self.board.fen().split(' ')[0]
+            candidate_pos = self.board.fen().split(' ')[0]
+            self.board.pop()
+
+            wrong_squares = 64 - _position_similarity(candidate_pos, argmax_pos)
+            if wrong_squares <= self.CONFIRMATION_TOLERANCE:
+                self.board.push(move)
+                self._confirmed_pos = self.board.fen().split(' ')[0]
+            else:
+                return None, 'failed'
 
         return san, tag
 

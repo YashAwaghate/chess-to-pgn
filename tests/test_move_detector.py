@@ -11,9 +11,12 @@ Coverage targets:
 """
 
 import chess
+import numpy as np
 import pytest
 
 from src.pipeline.move_detector import (
+    FEN_CLASSES,
+    TemporalBoardTracker,
     fen_to_piece_map,
     diff_positions,
     detect_move,
@@ -48,6 +51,24 @@ def _board_predictions(board: chess.Board) -> dict:
             symbol = piece.symbol() if piece else "empty"
             preds[sq_name] = _pred(symbol)
     return preds
+
+
+def _probs(piece: str, conf: float = 0.98) -> np.ndarray:
+    vec = np.full(len(FEN_CLASSES), (1.0 - conf) / (len(FEN_CLASSES) - 1),
+                  dtype=np.float32)
+    vec[FEN_CLASSES.index(piece)] = conf
+    return vec
+
+
+def _board_full_probs(board: chess.Board) -> dict:
+    """Build a near-certain full-probability dict from the current board."""
+    probs = {}
+    for rank in range(1, 9):
+        for f in "abcdefgh":
+            sq_name = f"{f}{rank}"
+            piece = board.piece_at(chess.parse_square(sq_name))
+            probs[sq_name] = _probs(piece.symbol() if piece else "empty")
+    return probs
 
 
 # ---------------------------------------------------------------------------
@@ -302,3 +323,39 @@ class TestDetectMoveWithFeedback:
         san, tag, _ = detect_move_with_feedback(STARTING_POS, preds, board)
         assert san is None
         assert tag == "failed"
+
+
+# ---------------------------------------------------------------------------
+# TemporalBoardTracker
+# ---------------------------------------------------------------------------
+
+class TestTemporalBoardTracker:
+
+    def test_confirms_legal_candidate_with_two_wrong_argmax_squares(self):
+        tracker = TemporalBoardTracker()
+        board_after = chess.Board()
+        board_after.push_san("e4")
+        probs = _board_full_probs(board_after)
+        probs["a7"] = _probs("empty")
+        probs["h1"] = _probs("empty")
+
+        san, tag = tracker.push(probs)
+
+        assert san == "e4"
+        assert tag in {"sure", "prior"}
+        assert tracker.board.fen().split(" ")[0] == AFTER_E4_POS
+
+    def test_rejects_legal_candidate_with_more_than_two_wrong_argmax_squares(self):
+        tracker = TemporalBoardTracker()
+        board_after = chess.Board()
+        board_after.push_san("e4")
+        probs = _board_full_probs(board_after)
+        probs["a7"] = _probs("empty")
+        probs["h1"] = _probs("empty")
+        probs["b8"] = _probs("empty")
+
+        san, tag = tracker.push(probs)
+
+        assert san is None
+        assert tag == "failed"
+        assert tracker.board.fen().split(" ")[0] == STARTING_POS

@@ -1,31 +1,39 @@
 # Chess-to-PGN: Evaluation Report
 
-**Date:** April 2026  
-**Model:** `chess_piece_classifier_v2.pth` + `corner_detector.pth`  
-**Dataset:** ChessReD (Masouris et al., 2023) — 100 OTB games, up to 3072×3072px images  
+**Date:** April 2026
+**Model:** `chess_piece_classifier_v2.pth` + `corner_detector.pth`
+**Dataset:** ChessReD (100 OTB games, up to 3072×3072 px images)
 **Evaluation scope:** 40 games / 4,321 frames (test + val splits) with ML-predicted corners
+**Reference baseline:** CVChess — Abeykoon, Patel, Senthilvelan, Kasundra. *"CVChess: A Deep Learning Framework for Converting Chessboard Images to Forsyth–Edwards Notation."* arXiv:2511.11522, Nov 2025.
 
 ---
 
 ## 1. Board Recognition — Classifier Accuracy
 
-### 1.1 Head-to-Head vs. SOTA
+### 1.1 Head-to-Head vs. CVChess
 
-| Metric | Masouris et al. 2023 (SOTA) | **Ours — 40-game eval** |
-|---|---|---|
-| Per-square accuracy | 94.69% | **97.83%** |
-| Per-square error | 5.31% | **2.17%** |
-| Mean wrong squares / board | 3.40 | **~1.39** |
-| Boards exactly correct | 15.26% | **51.72%** |
-| Frames ≥ 90% accuracy | — | **96.02%** |
-| Frames evaluated | 306 | 4,321 |
-| Games evaluated | 3 | 40 |
+Both systems are evaluated on the ChessReD benchmark. To match CVChess's reporting, we slice our results to the **20-game ChessReD test split (2,129 frames)** and also report our full **40-game test+val** number for context.
 
-> **Summary:** +3.1pp per-square accuracy, ×3.4 more exact boards vs. the published SOTA — across 14× more frames.
+| Metric | CVChess (Abeykoon 2025) | **Ours — test split (20 games)** | **Ours — test+val (40 games)** |
+|---|---|---|---|
+| Per-square accuracy | 98.93% † | **97.86%** | **97.83%** |
+| Per-square error | 1.07% † | **2.14%** | **2.17%** |
+| Mean wrong squares / board | 0.69 † | **~1.37** | **~1.39** |
+| Boards exactly correct | 63.96% † (53.78% ‡) | **51.86%** | **51.72%** |
+| Frames ≥ 90% accuracy | — | **95.96%** | **96.02%** |
+| Frames evaluated | 1,790 (of 2,129) | 2,129 | 4,321 |
+| Pipeline coverage | **84.1%** (lost ~16%) | **100%** | **100%** |
+| Corner detection | classical CV (Canny + Hough + contour heuristics) | **ML heatmap regression** | **ML heatmap regression** |
+| Move-detection eval | none | **2,109 GT moves** | **4,281 GT moves** |
+
+† CVChess's reported numbers are on the **subset of 1,790 / 2,129 test boards their classical corner detector successfully processed**; they explicitly report losing "about one-sixth of our images due to failed board detection" (§9 Discussion of arXiv:2511.11522).
+‡ Re-normalised to the full 2,129-board ChessReD test set, counting the 339 boards their pipeline could not process as exact-match failures: 1,145 / 2,129 = **53.78%** exact match.
+
+> **Where we stand vs. CVChess.** On the apples-to-apples test split, our classifier sits **−1.07pp on per-square accuracy** and **−1.92pp on exact-board** (51.86% vs. 53.78%, normalising both to the full denominator). CVChess's classifier-architecture lead is real but small. We trade that for **100% pipeline coverage** (vs. 84%), a **calibrated softmax** that downstream stages can consume, and a **complete move-decoding pipeline** that CVChess does not implement.
 
 ---
 
-### 1.2 Per-Game Breakdown
+### 1.2 Per-Game Breakdown (40 games, test+val)
 
 | Game | Frames | sq% | Exact% | Feedback% | Bayesian% | Tracker% |
 |---|---|---|---|---|---|---|
@@ -66,21 +74,23 @@
 
 ---
 
-## 2. Move Detection — Decoder Comparison
+## 2. Move Detection — A Capability CVChess Does Not Have
+
+CVChess emits an independent FEN per frame and **does not evaluate move detection**; its pipeline is a classifier, not a recogniser of game flow. We evaluate three decoders against 4,281 ground-truth moves derived from consecutive ChessReD FENs.
 
 | Decoder | Strategy | Moves detected | Correct | Rate |
 |---|---|---|---|---|
 | Feedback correction | Frame diff → top changed squares | 3,656 / 4,281 | 2,597 | 60.7% |
-| **Bayesian prior (ours)** | **Chess legality + opening priors** | **4,281 / 4,281** | **3,761** | **87.9%** |
+| **Bayesian prior (ours)** | **Chess legality + opening priors over full softmax** | **4,281 / 4,281** | **3,761** | **87.9%** |
 | Temporal tracker | Board-state FSM + diff mask | 4,233 / 4,281 | 1,295 | 30.2% |
 
-> The Bayesian decoder detects **100% of moves** (never misses a frame) and correctly identifies 87.9% — the other two decoders both miss moves and have lower correctness.
+> The Bayesian decoder detects **100% of moves** at **87.9% correctness**. This is the capability gap that matters: CVChess can tell you the FEN of a single image, our system can transcribe an entire OTB game.
 
 ---
 
 ## 3. Corner Detector — Validating the Bottleneck
 
-The ML corner detector (ResNet18 + heatmap regression head, trained on 2,078 ChessReD frames) produces the following localization accuracy on a held-out sample:
+Localisation accuracy on a held-out sample (original 3072px image space):
 
 | Corner | GT (px) | Predicted (px) | Error |
 |---|---|---|---|
@@ -89,7 +99,7 @@ The ML corner detector (ResNet18 + heatmap regression head, trained on 2,078 Che
 | bottom_right | [2610.3, 1560.9] | [2620.4, 1560.4] | **10.1 px** |
 | bottom_left | [1063.3, 2304.1] | [1058.7, 2306.8] | **5.4 px** |
 
-**In original 3072px image space — sub-pixel accurate in model 512px input space.**
+Sub-pixel accurate in the 512px model input space; 2–10 px error in the 3072px original. Crucially, **never fails to produce an output** — unlike CVChess's Canny+Hough+contour pipeline which silently drops 16% of test images.
 
 ### 3.1 Game 62 — Corner Quality Directly Drives Downstream Accuracy
 
@@ -99,136 +109,186 @@ The ML corner detector (ResNet18 + heatmap regression head, trained on 2,078 Che
 | Per-frame manual (hand-clicked) | ~84% | ~59% |
 | **ML corner detector (ours)** | **98.8%** | **100%** |
 
-> This experiment isolates the effect: **corner localization was the dominant error source**, not the piece classifier. Fixing corners took game 62 from completely broken to perfect move detection.
+> This experiment isolates the effect: corner localisation, not piece classification, was the dominant error source on game 62. Fixing corners took it from broken to perfect move detection — and exactly motivates why a learned corner detector matters for any system aiming at >90% per-square accuracy on phone/webcam imagery.
 
 ---
 
-## 4. What We Are Doing Better Than SOTA
+## 4. Critical Comparison vs. CVChess
 
-### 4.1 Piece Classifier Architecture
-- **CVCHESS-inspired residual CNN** trained end-to-end on ChessReD patches (64×64 px per square)
-- 13-class output: empty + 6 white + 6 black piece types
-- **Temperature scaling** calibrates confidence without retraining
-- **Test-time augmentation (TTA, 4 views)** — horizontal/vertical flips averaged at softmax level
-- Result: +3.1pp per-square accuracy, ×3.4 more exact boards vs. Masouris CNN baseline
+### 4.1 Where CVChess is Ahead
 
-### 4.2 Bayesian Move Decoder (Novel Contribution)
-- At each frame, instead of a hard argmax classification decision, we use the **full softmax probability distribution** over all 64 squares
-- A **Bayesian prior** built from opening book statistics weights candidate moves by their prior probability in human play
-- **Legal move filtering** (via `python-chess`) prunes the candidate space to only valid positions given the current game state
-- This decoder is **stateless per frame** — it does not require a confirmed previous board state to function
-- Detects 100% of moves, correctly identifies 87.9% across 40 games / 4,281 moves
+- **Classifier raw accuracy on ChessReD test (succeeded subset):** 98.93% per-sq / 63.96% exact vs. our 97.86% / 51.86%. A real ~1pp / ~12pp lead, driven mainly by their architecture: a single CNN over the full 400×400 warped board with a 64-way structured output, instead of our independent per-square 64×64 patches.
+- **Out-of-distribution evaluation included.** CVChess collected and tested on a 445-image manual recreation of the Kasparov–Topalov 1999 match, scoring 65.17% per-sq / 29.8% full FEN. We have **not** run an equivalent OOD test — a reviewer will flag this.
 
-### 4.3 ML Corner Detector (End-to-End Localization)
-- **ResNet18 encoder + 4-channel heatmap decoder** (128×128 spatial resolution per corner)
-- **Soft-argmax** provides sub-pixel differentiable localization — no post-processing needed
-- Trained on 2,078 annotated frames with heavy augmentation (perspective jitter ±5%, lighting/colour/brightness jitter)
-- Runs at **~5.8 images/second** on GPU; single-pass inference
-- Prior work (Masouris, BoardDetect) uses classical CV (Hough lines, RANSAC) — brittle on phone/webcam images
-- Ours generalizes to arbitrary capture devices; tested in `mode=dir` on session captures
+### 4.2 Where We Are Ahead
 
-### 4.4 Full End-to-End Deployed System
-- **Live capture** via browser UI (FastAPI + MediaPipe hand detection)
-- Automatic game-state capture triggered by hand-leave events (0.5s cooldown)
-- Board warp → 64-square crops → classifier → Bayesian decoder → PGN output
-- Deployable on Railway (Docker) with S3 session storage
-- **Masouris et al. have no deployed capture system** — their work is offline batch evaluation only
+- **100% pipeline coverage vs. 84.1%.** The ML corner detector closes the geometric-localisation gap that Hough+Canny cannot. On the full 2,129-board test set with no dropped frames, the exact-board comparison narrows to 51.86% (ours) vs. 53.78% (CVChess).
+- **Calibrated softmax + TTA.** We apply temperature scaling and 4-view test-time augmentation — neither of which CVChess uses. This produces probabilities the downstream Bayesian decoder can integrate, rather than a hard argmax.
+- **Move detection — entirely absent in CVChess.** 4,281 GT moves at 87.9% correctness / 100% recall is a different task and a different scientific contribution.
+- **End-to-end deployed live capture system.** Browser UI + MediaPipe hand detection + S3 storage, deployed on Railway. CVChess ships an evaluation script; we ship a working OTB game recorder.
+- **Game-62 corner ablation.** Three quantitative data points (44% → 84% → 98.8% per-sq) tied directly to corner quality. This kind of targeted ablation is missing from CVChess.
 
-### 4.5 Scale of Evaluation
-- **40 games / 4,321 frames** evaluated (vs. 3 games / 306 frames in Masouris) — 14× the evaluation scale
-- Demonstrated consistency across diverse games, camera angles, and lighting conditions within ChessReD
+### 4.3 Net Verdict
+
+CVChess wins on classifier-only accuracy by a small margin on its succeeded subset. We win on system completeness, robustness across the full test set, and the move-decoding capability. The two systems are not strictly comparable: CVChess solves "image → FEN" and we solve "video stream → PGN". On the shared sub-problem (image → FEN on ChessReD), the gap is small enough that the architectural choices outlined in §6 below should close or reverse it.
 
 ---
 
-## 5. Critical Analysis — Is This a Publishable Contribution?
+## 5. Weaknesses That Block a Conference Submission
 
-### 5.1 What Is Genuinely Strong
+#### W1: No out-of-distribution evaluation — Impact: HIGH
+All evaluation is on ChessReD; the classifier was also *trained* on ChessReD. CVChess's OOD experiment showed a **34pp drop** (98.93% → 65.17% per-sq) when moving to a hand-photographed Kasparov–Topalov recreation. We should expect a similar cliff. Without an OOD result, claims of "beating CVChess" are unfalsifiable.
 
-- **The classifier improvement is real and statistically significant.** 4,321 frames × 64 squares = 276,544 binary square decisions. A +3.1pp accuracy gain at this scale is not noise.
-- **The Bayesian decoder is a genuine algorithmic contribution.** Treating move detection as probabilistic inference over the classifier's full softmax distributions — rather than hard argmax decisions — is well-motivated and directly validated. 87.9% detection rate at 100% recall is meaningfully better than the feedback baseline (60.7%).
-- **The corner detector is novel for this domain.** Prior work uses classical CV. A learned heatmap approach that directly generalizes to mobile captures is a practical and technically grounded improvement.
-- **The end-to-end live capture system has no published equivalent** in the chess digitization literature.
-- **The game 62 ablation is compelling.** Isolating corner quality as the dominant failure mode — with three data points along the quality curve — is exactly the kind of targeted experiment reviewers find convincing.
+#### W2: Corner detector evaluation is partially circular — Impact: MEDIUM
+The 40-game eval uses ML-predicted corners as if they were ground truth, but the corner detector was trained on ChessReD. For 34 of 40 games we have no independent corner annotations, so we cannot decompose 97.83% per-square accuracy into classifier vs. residual-corner error.
 
----
+#### W3: Temporal tracker is broken — Impact: MEDIUM
+30.2% overall, 0% on 22 of 40 games. Structurally, the tracker requires an exact argmax board match to advance state, which fails because ~50% of frames have ≥2 wrong squares. Either fix it (relax confirmation, see §6.5) or remove it from the headline table.
 
-### 5.2 Weaknesses and Tradeoffs
+#### W4: High game-to-game variance — Impact: MEDIUM
+Bayesian move detection ranges from 28.8% (game 3) to 100% (14 games). Games 3 and 4 are systematic outliers, almost certainly due to extreme camera obliqueness or ChessReD annotation quality. A 70-point spread without a failure-mode analysis is a referee target.
 
-#### W1: Train/Test Overlap Risk — Impact: HIGH
-**All evaluation is on ChessReD.** The piece classifier was also *trained* on ChessReD. While we strictly use disjoint splits (train vs. val/test), the domain distribution is identical: same camera rigs, same lighting conditions, same chess piece sets. **Generalization to real-world webcam captures is unvalidated.** A reviewer will immediately ask: "Have you tested this on any data not from ChessReD?"
-
-This is the single biggest barrier to a strong paper claim. A real-world test — even 5–10 self-recorded games — would substantially strengthen the submission.
-
-#### W2: Corner Detector Evaluation is Partially Circular — Impact: MEDIUM
-The 40-game eval uses ML-predicted corners as if they were ground truth, but the corner detector was trained on ChessReD images — the same distribution it is being tested on. For 34 of the 40 games we have no independent corner annotations, so we cannot decompose the 97.83% per-square accuracy into classifier error vs. residual corner error. The true classifier-only accuracy is somewhere between 97.83% (all error attributed to classifier) and higher (some error is corner drift).
-
-#### W3: Temporal Tracker is Broken — Impact: MEDIUM
-The temporal board tracker scores **30.2% overall** and **0% on 22 of 40 games** — worse than the stateless Bayesian decoder on its own. The root cause is structural: the tracker requires an exact argmax board match to confirm and advance its state, but ~50% of frames have ≥2 wrong squares, so the confirmation condition almost never triggers and every move falls back to the weaker prior path. Including this in the main results table without an explanation actively hurts credibility.
-
-#### W4: High Game-to-Game Variance — Impact: MEDIUM
-Bayesian move detection ranges from **28.8% (game 3) to 100% (14 games)**. This 70-point spread is not explained anywhere. Games 3 and 4 are systematic outliers — likely due to extreme camera obliqueness or annotation quality issues in ChessReD itself. A mean of 87.9% obscures this variance. A paper needs to characterize *why* low-performing games fail, or exclude them with a documented justification.
-
-#### W5: No Real-Time or Live Capture Evaluation — Impact: LOW (academic) / HIGH (product)
-The live capture system is deployed on Railway, but we have no quantitative evaluation of it. Unknown: whether latency, hand detection errors, JPEG compression artifacts, or variable webcam quality degrade classifier performance in production. All reported numbers come from ChessReD's high-resolution static images. For an academic paper this is acceptable; for a product or demo claim it is a gap.
-
-#### W6: Dataset Size is Modest — Impact: LOW
-ChessReD has 100 games total; we evaluated 40. This is inherent to the field — annotated image datasets of OTB chess games are extremely small compared to digital chess databases. Masouris et al. faced the same constraint. The 2,078 frames used to train the corner detector come from the same 100 games.
-
-#### W7: Feedback Decoder at 60.7% Needs Reframing — Impact: LOW
-The feedback correction decoder (60.7%) underperforms the Bayesian decoder (87.9%) significantly. Reporting it as a system output rather than a baseline comparison may confuse readers into thinking the system has two operating modes of similar quality. It should be presented as: "naive baseline = 60.7%, our method = 87.9%."
+#### W5: No live-capture quantitative evaluation — Impact: LOW (academic) / HIGH (product)
+Latency, hand-detection failures, JPEG compression, webcam noise — all unmeasured. Acceptable for a paper, blocking for a product claim.
 
 ---
 
-### 5.3 Publication Verdict
+## 6. Improvements to Beat CVChess
 
-| Venue | Verdict | Condition |
+The following changes are ordered by **expected impact per unit of engineering effort**. Items marked ✱ would, on their own, plausibly close the per-square gap to CVChess; items marked ✱✱ would push past it.
+
+### 6.1 ✱✱ Full-board classifier head with per-square auxiliary loss
+**Why:** CVChess's +1pp lead is most likely architectural — a single CNN sees the entire 400×400 warped board and learns inter-square context (a king on e1 implies no king on e8; a pawn on e2 in the opening is overwhelmingly likely; the colour pattern of the squares constrains the legal piece colours). Our per-square 64×64 patches throw all of that away.
+
+**What to do:**
+- Add a second training head: full-board ResNet over the 400×400 warped image with a `64 × 13` structured output, identical to CVChess's architecture.
+- Train *jointly* with the per-square head via a shared backbone, with a weighted sum of (per-square cross-entropy) + (full-board cross-entropy).
+- At inference, average the two softmaxes per square.
+
+**Expected gain:** +0.5–1.0pp per-square; +5–10pp exact-board. Closes or reverses the CVChess gap while preserving the per-square calibration we need for the Bayesian decoder.
+
+### 6.2 ✱✱ Multi-frame softmax fusion before decoding
+**Why:** CVChess is single-frame by design. We have a *video stream* and during STATIC periods (no hand visible) the board does not change. Averaging 5–10 consecutive STATIC-period softmaxes per square will dramatically reduce per-frame noise — and CVChess cannot do this because they have no notion of capture state.
+
+**What to do:**
+- In the capture state machine, accumulate softmax probabilities across all STATIC frames between hand-leave and the next hand-enter event.
+- Decode from the *averaged* softmax instead of a single frame.
+- For ChessReD evaluation: simulate by averaging across the N frames within each game segment that share a GT FEN.
+
+**Expected gain:** +1–2pp per-square (purely from variance reduction), and a much larger gain on exact-board because rare-square errors are damped. This is a capability CVChess structurally cannot match.
+
+### 6.3 ✱ Out-of-distribution training data via domain randomisation
+**Why:** ChessReD is 3 phone models, 1 piece set family. CVChess's 34pp OOD cliff is the single biggest threat to both papers. The fix is to widen the training distribution.
+
+**What to do:**
+- Render synthetic boards with randomised piece sets, lighting, camera angles, table backgrounds (Blender or a Three.js renderer with chess.com piece SVGs and PBR materials).
+- Augment ChessReD with: piece-style colour jitter, neural-style-transfer "wood/glass/metal" piece variants, random table texture overlay, simulated JPEG/sensor noise.
+- Re-record 3–5 games on a webcam at home with a different piece set; use them as a 100% held-out OOD eval.
+
+**Expected gain:** Closes 5–15pp of the OOD cliff. Doesn't help in-domain numbers but dominates the conference-submission story.
+
+### 6.4 ✱ End-to-end joint training (corners + classifier)
+**Why:** Currently the corner detector and classifier are trained separately; corner errors propagate but the classifier never sees gradient feedback that a 5px corner shift is hurting it.
+
+**What to do:**
+- Make the perspective warp differentiable (`kornia.geometry.transform.warp_perspective` is already differentiable w.r.t. corner coordinates).
+- Backprop the classifier loss all the way through the warp into the corner heatmaps.
+- Train end-to-end with a small additional weight on the corner-supervision loss to keep the corner head from collapsing.
+
+**Expected gain:** +0.3–0.7pp per-square; tighter coupling means corner predictions specifically optimise for downstream square crops.
+
+### 6.5 ✱ Fix the temporal tracker
+The current FSM requires an exact 64/64 argmax match to advance state. Replace with: advance state if the **legal-move-filtered argmax** matches the expected next position within a tolerance of `≤2 wrong squares` *and* the implied move is in the legal-move set. This converts the tracker into a hypothesis confirmer over the Bayesian decoder's output, instead of an independent (and weaker) decoder.
+
+**Expected gain:** Tracker rises from 30.2% to ~80%+; gives us a credible "third decoder" line in the paper instead of a known-broken one.
+
+### 6.6 ✱ Higher-resolution warp
+CVChess uses 400×400 (50px / square). Going to 800×800 (100px / square) doubles the linear pixel detail per piece. Cost: 4× warp memory, ~2× classifier compute. On a 3072px source image we have plenty of pixels to sample from.
+
+**Expected gain:** +0.2–0.5pp per-square, especially on small/distant pieces in steep-angle frames.
+
+### 6.7 ✱ Structured priors at training time
+Add an auxiliary loss that penalises physically impossible boards: more than 2 of any minor-piece colour, more than 8 pawns of one colour, kings missing, two kings of the same colour, etc. This is cheap (a closed-form differentiable count over the softmax) and CVChess does not do it.
+
+**Expected gain:** +0.2pp per-square but a larger gain on exact-board, because exact-board is dominated by single rare-piece errors that violate piece counts.
+
+### 6.8 ✱ Hand-occlusion masking
+We already run MediaPipe hand detection in the live system. Use it during evaluation too: when a hand polygon overlaps a square, *do not* update that square's softmax accumulator (§6.2) and instead carry forward the prior. CVChess has no concept of occlusion.
+
+**Expected gain:** Specific to live capture, but eliminates a class of failure that CVChess's OOD test had no answer for.
+
+### 6.9 Self-supervised pretraining on unlabelled chess images
+DINO or MAE pretraining on a few thousand unlabelled board images (scraped from YouTube chess streams), then fine-tune on ChessReD. Reduces the in-domain overfitting risk and closes some of the OOD gap.
+
+**Expected gain:** +0.3–1.0pp on in-domain; meaningful on OOD. Higher engineering cost than the items above.
+
+### 6.10 Active learning loop on production captures
+Hard but high-leverage: log frames where the Bayesian decoder falls back to "prior" (i.e., low confidence), surface them to a labelling UI, retrain weekly. Over 6 months this would build a webcam-domain dataset CVChess does not and cannot have.
+
+---
+
+## 7. Suggested Order of Operations
+
+| Phase | Items | Outcome |
 |---|---|---|
-| **Workshop paper** (CV4Chess, ECCV/CVPR workshops) | **Yes — strong submission** | Novel decoder + learned corners + deployed system + beats SOTA on accepted benchmark |
-| **Conference paper** (CVPR, ECCV, ICCV) | **Borderline** | Needs real-world eval + tracker fix or removal + failure analysis for outlier games |
-| **Journal paper** | **Not yet** | Needs dataset expansion, live capture quantitative eval, full ablation study, and tracker redesign |
-
-**Minimum changes to strengthen for a conference submission:**
-1. Record and evaluate 10+ real-world games from a webcam (not ChessReD)
-2. Remove the temporal tracker from the main table or fix it (relax the confirmation threshold)
-3. Add a failure analysis section for games 3 and 4
-4. Add an ablation table: classifier-only → +Bayesian → +ML corners
-5. Formally report latency (target: <100ms/frame end-to-end)
+| **Phase 1 (1–2 weeks)** | §6.1 dual-head, §6.2 softmax fusion, §6.5 tracker fix | Plausibly beats CVChess on per-square and exact-board on ChessReD test |
+| **Phase 2 (2–3 weeks)** | §6.3 domain randomisation + 5 home-recorded games | Closes the OOD gap CVChess opened; gives the paper an OOD result |
+| **Phase 3 (1 week)** | §6.4 joint training, §6.6 800×800, §6.7 structured prior | Polish; final 0.5–1.5pp |
+| **Phase 4 (defer)** | §6.8–§6.10 | Product/long-term, not paper-critical |
 
 ---
 
-## 6. Summary Numbers Card
+## 8. Summary Numbers Card
 
 ```
 =====================================================================
   Chess-to-PGN — Key Results (April 2026)
 =====================================================================
 
-  PIECE CLASSIFIER  (40 games / 4,321 frames, ML corners)
+  CHESSREDD HEAD-TO-HEAD vs. CVCHESS (Abeykoon 2025)
   ---------------------------------------------------------
-  Per-square accuracy      97.83%   (SOTA: 94.69%,  +3.14pp)
-  Boards exactly correct   51.72%   (SOTA: 15.26%,  +36.5pp)
-  Frames >= 90% accuracy   96.02%   (SOTA:    --          )
+                              Ours        CVChess '25
+  Boards processed            100%        84.1%   (lost ~16% to Hough)
+  Per-square accuracy         97.86%      98.93%  (on succeeded subset)
+  Boards exactly correct      51.86%      63.96%  (on succeeded subset)
+                                          53.78%  (on full 2,129)
+  Calibrated softmax / TTA    yes         no
+  Move-detection eval         87.9%       not implemented
 
-  MOVE DETECTION  (4,281 GT moves across 40 games)
+  PIECE CLASSIFIER  (40 games / 4,321 frames, ML corners, test+val)
+  ---------------------------------------------------------
+  Per-square accuracy      97.83%
+  Boards exactly correct   51.72%
+  Frames >= 90% accuracy   96.02%
+
+  MOVE DETECTION  (4,281 GT moves; CVChess does not evaluate this)
   ---------------------------------------------------------
   Bayesian decoder (ours)  87.90%   (100% recall, novel contribution)
   Feedback correction      60.70%   (naive baseline)
-  Temporal tracker         30.20%   (known open problem)
+  Temporal tracker         30.20%   (known open problem — see §6.5)
 
   CORNER DETECTOR  (ResNet18 + heatmap regression)
   ---------------------------------------------------------
   Localization error       2-10 px  (in 3072px original image space)
   Training frames          2,078
   Inference speed          5.8 img/s  (GPU)
+  CVChess corner method    Hough+Canny  (16% test-set failure rate)
 
   GAME 62 ABLATION  (corner quality -> downstream accuracy)
   ---------------------------------------------------------
   Manual per-game corners  44% sq acc  /   ~0% move det
   Manual per-frame clicks  84% sq acc  /  ~59% move det
   ML corner detector       98.8% sq acc / 100% move det
+
+  CVCHESS OUT-OF-DISTRIBUTION REFERENCE POINT
+  ---------------------------------------------------------
+  CVChess on ChessReD test       98.93% sq / 63.96% exact (1,790 boards)
+  CVChess on Kasparov-Topalov    65.17% sq / 29.80% exact (445 images)
+  -> Domain shift cost CVChess ~34pp; expect similar magnitude for us
 =====================================================================
 ```
 
 ---
 
 *Raw results in `stats_output_model/temporal_eval_auto_corners.json`. Generated by `eval_temporal_tracker.py`.*
+*CVChess reference: Abeykoon, Patel, Senthilvelan, Kasundra. "CVChess: A Deep Learning Framework for Converting Chessboard Images to Forsyth–Edwards Notation." arXiv:2511.11522, Nov 2025. Numbers extracted from §6 (Quantitative Results) and §8 (Evaluation on New Data).*
