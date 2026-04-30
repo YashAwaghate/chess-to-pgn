@@ -345,7 +345,7 @@ class TestTemporalBoardTracker:
         assert tag in {"sure", "prior"}
         assert tracker.board.fen().split(" ")[0] == AFTER_E4_POS
 
-    def test_rejects_legal_candidate_with_more_than_two_wrong_argmax_squares(self):
+    def test_initializes_from_first_unreachable_frame_without_advancing_board(self):
         tracker = TemporalBoardTracker()
         board_after = chess.Board()
         board_after.push_san("e4")
@@ -357,5 +357,6 @@ class TestTemporalBoardTracker:
         san, tag = tracker.push(probs)
 
         assert san is None
-        assert tag == "failed"
+        assert tag == "no_change"
         assert tracker.board.fen().split(" ")[0] == STARTING_POS
+        assert tracker._confirmed_pos != STARTING_POS

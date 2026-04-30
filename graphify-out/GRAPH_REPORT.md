@@ -1,11 +1,11 @@
 # Graph Report - chess-to-pgn  (2026-04-30)
 
 ## Corpus Check
-- 45 files · ~67,983 words
+- 45 files · ~68,004 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 880 nodes · 1905 edges · 59 communities detected
+- 884 nodes · 1903 edges · 64 communities detected
 - Extraction: 46% EXTRACTED · 54% INFERRED · 0% AMBIGUOUS · INFERRED: 1027 edges (avg confidence: 0.56)
 - Token cost: 0 input · 0 output
 
@@ -42,7 +42,7 @@
 - [[_COMMUNITY_Community 30|Community 30]]
 - [[_COMMUNITY_Community 31|Community 31]]
 - [[_COMMUNITY_Community 32|Community 32]]
-- [[_COMMUNITY_Community 37|Community 37]]
+- [[_COMMUNITY_Community 33|Community 33]]
 - [[_COMMUNITY_Community 38|Community 38]]
 - [[_COMMUNITY_Community 39|Community 39]]
 - [[_COMMUNITY_Community 40|Community 40]]
@@ -69,6 +69,11 @@
 - [[_COMMUNITY_Community 61|Community 61]]
 - [[_COMMUNITY_Community 62|Community 62]]
 - [[_COMMUNITY_Community 63|Community 63]]
+- [[_COMMUNITY_Community 64|Community 64]]
+- [[_COMMUNITY_Community 65|Community 65]]
+- [[_COMMUNITY_Community 66|Community 66]]
+- [[_COMMUNITY_Community 67|Community 67]]
+- [[_COMMUNITY_Community 68|Community 68]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `ChessPieceClassifier` - 294 edges
@@ -98,7 +103,7 @@
 
 ### Community 0 - "Community 0"
 Cohesion: 0.03
-Nodes (142): Return enriched analysis for a processed session (cached after /api/generate_pgn, List available sessions with image counts for labeling., Get classifier predictions for a specific image (auto-fill for labeling)., Save manual labels for a specific image., Return structured benchmark results from the April 2026 ChessReD evaluation., Get existing labels for a specific image., Return structured benchmark results from the April 2026 ChessReD evaluation., Compute per-square accuracy for a session that has ground-truth labels. (+134 more)
+Nodes (142): Return enriched analysis for a processed session (cached after /api/generate_pgn, Save manual labels for a specific image., Save manual labels for a specific image., Return structured benchmark results from the April 2026 ChessReD evaluation., Get existing labels for a specific image., Return structured benchmark results from the April 2026 ChessReD evaluation., Compute per-square accuracy for a session that has ground-truth labels., Auto-label all frames using the classifier's per-square softmax.      Frames w (+134 more)
 
 ### Community 1 - "Community 1"
 Cohesion: 0.04
@@ -110,7 +115,7 @@ Nodes (55): collect_logits(), expected_calibration_error(), fit_temperature(), m
 
 ### Community 3 - "Community 3"
 Cohesion: 0.03
-Nodes (74): List warped images and existing labels for a session., List warped images and existing labels for a session., Get classifier predictions for a specific image (auto-fill for labeling)., Save manual labels for a specific image., Get existing labels for a specific image., Export labeled session frames as a training-format ZIP.      ZIP structure: {p, Decode a base64-encoded image to BGR ndarray. PIL only — no cv2.imdecode., Decode a base64-encoded image to BGR ndarray. PIL only — no cv2.imdecode. (+66 more)
+Nodes (73): List available sessions with image counts for labeling., List warped images and existing labels for a session., List warped images and existing labels for a session., Get classifier predictions for a specific image (auto-fill for labeling)., Get classifier predictions for a specific image (auto-fill for labeling)., Get existing labels for a specific image., Compute per-square accuracy for a session that has ground-truth labels., Auto-label all frames using the classifier's per-square softmax.      Frames w (+65 more)
 
 ### Community 4 - "Community 4"
 Cohesion: 0.05
@@ -181,52 +186,52 @@ Cohesion: 0.67
 Nodes (1): Per-frame breakdown for game 62 — find which frames are bad.
 
 ### Community 22 - "Community 22"
-Cohesion: 1.0
-Nodes (1): Debug: visualize warped board for game 62 frame 0 with manual corners.
+Cohesion: 0.67
+Nodes (1): Download the .task model file if not already present.
 
 ### Community 23 - "Community 23"
 Cohesion: 1.0
-Nodes (2): get_eval_summary(), Return structured benchmark results from the April 2026 ChessReD evaluation.
+Nodes (1): Debug: visualize warped board for game 62 frame 0 with manual corners.
 
 ### Community 24 - "Community 24"
 Cohesion: 1.0
-Nodes (2): get_session_analysis(), Return enriched analysis for a processed session (cached after /api/generate_pgn
+Nodes (2): gallery_get_session(), Return game_info + warped/raw image lists for a session.
 
 ### Community 25 - "Community 25"
 Cohesion: 1.0
-Nodes (2): labeling_list_sessions(), List available sessions with image counts for labeling.
+Nodes (2): get_eval_summary(), Return structured benchmark results from the April 2026 ChessReD evaluation.
 
 ### Community 26 - "Community 26"
 Cohesion: 1.0
-Nodes (2): labeling_list_images(), List warped images and existing labels for a session.
+Nodes (2): labeling_list_sessions(), List available sessions with image counts for labeling.
 
 ### Community 27 - "Community 27"
 Cohesion: 1.0
-Nodes (2): gallery_get_image_typed(), Stream a single image from warped/ or raw/ subfolder.
+Nodes (2): labeling_save_labels(), Save manual labels for a specific image.
 
 ### Community 28 - "Community 28"
 Cohesion: 1.0
-Nodes (2): labeling_save_labels(), Save manual labels for a specific image.
+Nodes (2): gallery_get_image(), Run the trained ML corner detector on the provided camera frame.      Returns
 
 ### Community 29 - "Community 29"
 Cohesion: 1.0
-Nodes (2): gallery_list_sessions(), Stream a single image — backward compat for old flat sessions or warped fallback
+Nodes (2): labeling_get_labels(), Get existing labels for a specific image.
 
 ### Community 30 - "Community 30"
 Cohesion: 1.0
-Nodes (2): gallery_get_image(), Run the trained ML corner detector on the provided camera frame.      Returns
+Nodes (2): labeling_list_images(), List warped images and existing labels for a session.
 
 ### Community 31 - "Community 31"
 Cohesion: 1.0
-Nodes (2): gallery_get_session(), Return game_info + warped/raw image lists for a session.
+Nodes (2): gallery_get_image_typed(), Stream a single image from warped/ or raw/ subfolder.
 
 ### Community 32 - "Community 32"
 Cohesion: 1.0
-Nodes (2): labeling_get_labels(), Get existing labels for a specific image.
+Nodes (2): get_session_analysis(), Return enriched analysis for a processed session (cached after /api/generate_pgn
 
-### Community 37 - "Community 37"
+### Community 33 - "Community 33"
 Cohesion: 1.0
-Nodes (1): Parameters         ----------         prior_weight : float             Multip
+Nodes (2): gallery_list_sessions(), Stream a single image — backward compat for old flat sessions or warped fallback
 
 ### Community 38 - "Community 38"
 Cohesion: 1.0
@@ -246,122 +251,142 @@ Nodes (1): Squash excess piece predictions on changed squares to enforce invento
 
 ### Community 42 - "Community 42"
 Cohesion: 1.0
-Nodes (1): Build a perfect predictions dict from the current board state.
+Nodes (1): Parameters         ----------         prior_weight : float             Multip
 
 ### Community 43 - "Community 43"
 Cohesion: 1.0
-Nodes (1): Simulate a 2-square classifier error on an otherwise-correct e4 move.
+Nodes (1): Process one frame's softmax output and attempt to detect a move.          Para
 
 ### Community 44 - "Community 44"
 Cohesion: 1.0
-Nodes (1): Return list of FEN position strings by replaying a move sequence.
+Nodes (1): Reset to starting position.
 
 ### Community 45 - "Community 45"
 Cohesion: 1.0
-Nodes (1): Wraps the MediaPipe Hand Landmarker (Tasks API, mediapipe>=0.10) to detect
+Nodes (1): Return a modified softmax dict with change-mask gating and         inventory co
 
 ### Community 46 - "Community 46"
 Cohesion: 1.0
-Nodes (1): Download the .task model file if not already present.
+Nodes (1): Squash excess piece predictions on changed squares to enforce inventory.
 
 ### Community 47 - "Community 47"
 Cohesion: 1.0
-Nodes (1): Detect hands in a BGR frame.          Parameters         ----------
+Nodes (1): Build a perfect predictions dict from the current board state.
 
 ### Community 48 - "Community 48"
 Cohesion: 1.0
-Nodes (1): Convert FEN position string to {square_name: piece_char} dict.      Empty squa
+Nodes (1): Simulate a 2-square classifier error on an otherwise-correct e4 move.
 
 ### Community 49 - "Community 49"
 Cohesion: 1.0
-Nodes (1): Find squares that changed between two FEN positions.      Returns dict with:
+Nodes (1): Return list of FEN position strings by replaying a move sequence.
 
 ### Community 50 - "Community 50"
 Cohesion: 1.0
-Nodes (1): Find the legal move that transforms the board from prev to curr position.
+Nodes (1): Wraps the MediaPipe Hand Landmarker (Tasks API, mediapipe>=0.10) to detect
 
 ### Community 51 - "Community 51"
 Cohesion: 1.0
-Nodes (1): Count number of matching squares between two FEN positions (out of 64).
+Nodes (1): Download the .task model file if not already present.
 
 ### Community 52 - "Community 52"
 Cohesion: 1.0
-Nodes (1): Try to detect a legal move, with feedback-driven correction on failure.      I
+Nodes (1): Detect hands in a BGR frame.          Parameters         ----------
 
 ### Community 53 - "Community 53"
 Cohesion: 1.0
-Nodes (1): Score every legal move by its Bayesian posterior under the full     classifier
+Nodes (1): Convert FEN position string to {square_name: piece_char} dict.      Empty squa
 
 ### Community 54 - "Community 54"
 Cohesion: 1.0
-Nodes (1): Run the Bayesian-prior detector over a sequence of per-frame softmaxes.      M
+Nodes (1): Find squares that changed between two FEN positions.      Returns dict with:
 
 ### Community 55 - "Community 55"
 Cohesion: 1.0
-Nodes (1): Process a sequence of FEN positions and detect all moves.      Parameters
+Nodes (1): Find the legal move that transforms the board from prev to curr position.
 
 ### Community 56 - "Community 56"
 Cohesion: 1.0
-Nodes (1): Majority-vote across K frames' predictions for each of 64 squares.      For ea
+Nodes (1): Count number of matching squares between two FEN positions (out of 64).
 
 ### Community 57 - "Community 57"
 Cohesion: 1.0
-Nodes (1): Process a sequence of per-frame predictions and detect all moves,     with feed
+Nodes (1): Try to detect a legal move, with feedback-driven correction on failure.      I
 
 ### Community 58 - "Community 58"
 Cohesion: 1.0
-Nodes (1): Maintains running board state and applies temporal heuristics to resolve     un
+Nodes (1): Score every legal move by its Bayesian posterior under the full     classifier
 
 ### Community 59 - "Community 59"
 Cohesion: 1.0
-Nodes (1): Parameters         ----------         prior_weight : float             Multip
+Nodes (1): Run the Bayesian-prior detector over a sequence of per-frame softmaxes.      M
 
 ### Community 60 - "Community 60"
 Cohesion: 1.0
-Nodes (1): Process one frame's softmax output and attempt to detect a move.          Para
+Nodes (1): Process a sequence of FEN positions and detect all moves.      Parameters
 
 ### Community 61 - "Community 61"
 Cohesion: 1.0
-Nodes (1): Reset to starting position.
+Nodes (1): Majority-vote across K frames' predictions for each of 64 squares.      For ea
 
 ### Community 62 - "Community 62"
 Cohesion: 1.0
-Nodes (1): Return a modified softmax dict with change-mask gating and         inventory co
+Nodes (1): Process a sequence of per-frame predictions and detect all moves,     with feed
 
 ### Community 63 - "Community 63"
+Cohesion: 1.0
+Nodes (1): Maintains running board state and applies temporal heuristics to resolve     un
+
+### Community 64 - "Community 64"
+Cohesion: 1.0
+Nodes (1): Parameters         ----------         prior_weight : float             Multip
+
+### Community 65 - "Community 65"
+Cohesion: 1.0
+Nodes (1): Process one frame's softmax output and attempt to detect a move.          Para
+
+### Community 66 - "Community 66"
+Cohesion: 1.0
+Nodes (1): Reset to starting position.
+
+### Community 67 - "Community 67"
+Cohesion: 1.0
+Nodes (1): Return a modified softmax dict with change-mask gating and         inventory co
+
+### Community 68 - "Community 68"
 Cohesion: 1.0
 Nodes (1): Squash excess piece predictions on changed squares to enforce inventory.
 
 ## Knowledge Gaps
-- **124 isolated node(s):** `check_coverage_gate.py — CI gate: fail if any src/ module is below MIN_COVERAGE`, `Debug: visualize warped board for game 62 frame 0 with manual corners.`, `Count squares that differ from the starting position (proxy for mid-game).`, `Return {image_id: {square: piece_char}} from annotations.`, `Convert GT map to a list of 64 category IDs in _FEN_SQUARES order.      Returns` (+119 more)
+- **128 isolated node(s):** `check_coverage_gate.py — CI gate: fail if any src/ module is below MIN_COVERAGE`, `Debug: visualize warped board for game 62 frame 0 with manual corners.`, `Count squares that differ from the starting position (proxy for mid-game).`, `Return {image_id: {square: piece_char}} from annotations.`, `Convert GT map to a list of 64 category IDs in _FEN_SQUARES order.      Returns` (+123 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **Thin community `Community 16`** (7 nodes): `generate_report_doc.py`, `add_body()`, `add_bullet()`, `add_chart()`, `add_heading()`, `make_summary_table()`, `set_cell_bg()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 21`** (3 nodes): `crop()`, `Per-frame breakdown for game 62 — find which frames are bad.`, `debug_g62_per_frame.py`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 22`** (2 nodes): `Debug: visualize warped board for game 62 frame 0 with manual corners.`, `debug_warp_g62.py`
+- **Thin community `Community 22`** (3 nodes): `._ensure_model()`, `.__init__()`, `Download the .task model file if not already present.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 23`** (2 nodes): `get_eval_summary()`, `Return structured benchmark results from the April 2026 ChessReD evaluation.`
+- **Thin community `Community 23`** (2 nodes): `Debug: visualize warped board for game 62 frame 0 with manual corners.`, `debug_warp_g62.py`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 24`** (2 nodes): `get_session_analysis()`, `Return enriched analysis for a processed session (cached after /api/generate_pgn`
+- **Thin community `Community 24`** (2 nodes): `gallery_get_session()`, `Return game_info + warped/raw image lists for a session.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 25`** (2 nodes): `labeling_list_sessions()`, `List available sessions with image counts for labeling.`
+- **Thin community `Community 25`** (2 nodes): `get_eval_summary()`, `Return structured benchmark results from the April 2026 ChessReD evaluation.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 26`** (2 nodes): `labeling_list_images()`, `List warped images and existing labels for a session.`
+- **Thin community `Community 26`** (2 nodes): `labeling_list_sessions()`, `List available sessions with image counts for labeling.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 27`** (2 nodes): `gallery_get_image_typed()`, `Stream a single image from warped/ or raw/ subfolder.`
+- **Thin community `Community 27`** (2 nodes): `labeling_save_labels()`, `Save manual labels for a specific image.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 28`** (2 nodes): `labeling_save_labels()`, `Save manual labels for a specific image.`
+- **Thin community `Community 28`** (2 nodes): `gallery_get_image()`, `Run the trained ML corner detector on the provided camera frame.      Returns`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 29`** (2 nodes): `gallery_list_sessions()`, `Stream a single image — backward compat for old flat sessions or warped fallback`
+- **Thin community `Community 29`** (2 nodes): `labeling_get_labels()`, `Get existing labels for a specific image.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 30`** (2 nodes): `gallery_get_image()`, `Run the trained ML corner detector on the provided camera frame.      Returns`
+- **Thin community `Community 30`** (2 nodes): `labeling_list_images()`, `List warped images and existing labels for a session.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 31`** (2 nodes): `gallery_get_session()`, `Return game_info + warped/raw image lists for a session.`
+- **Thin community `Community 31`** (2 nodes): `gallery_get_image_typed()`, `Stream a single image from warped/ or raw/ subfolder.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 32`** (2 nodes): `labeling_get_labels()`, `Get existing labels for a specific image.`
+- **Thin community `Community 32`** (2 nodes): `get_session_analysis()`, `Return enriched analysis for a processed session (cached after /api/generate_pgn`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 37`** (1 nodes): `Parameters         ----------         prior_weight : float             Multip`
+- **Thin community `Community 33`** (2 nodes): `gallery_list_sessions()`, `Stream a single image — backward compat for old flat sessions or warped fallback`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 38`** (1 nodes): `Process one frame's softmax output and attempt to detect a move.          Para`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
@@ -371,60 +396,70 @@ Nodes (1): Squash excess piece predictions on changed squares to enforce invento
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 41`** (1 nodes): `Squash excess piece predictions on changed squares to enforce inventory.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 42`** (1 nodes): `Build a perfect predictions dict from the current board state.`
+- **Thin community `Community 42`** (1 nodes): `Parameters         ----------         prior_weight : float             Multip`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 43`** (1 nodes): `Simulate a 2-square classifier error on an otherwise-correct e4 move.`
+- **Thin community `Community 43`** (1 nodes): `Process one frame's softmax output and attempt to detect a move.          Para`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 44`** (1 nodes): `Return list of FEN position strings by replaying a move sequence.`
+- **Thin community `Community 44`** (1 nodes): `Reset to starting position.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 45`** (1 nodes): `Wraps the MediaPipe Hand Landmarker (Tasks API, mediapipe>=0.10) to detect`
+- **Thin community `Community 45`** (1 nodes): `Return a modified softmax dict with change-mask gating and         inventory co`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 46`** (1 nodes): `Download the .task model file if not already present.`
+- **Thin community `Community 46`** (1 nodes): `Squash excess piece predictions on changed squares to enforce inventory.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 47`** (1 nodes): `Detect hands in a BGR frame.          Parameters         ----------`
+- **Thin community `Community 47`** (1 nodes): `Build a perfect predictions dict from the current board state.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 48`** (1 nodes): `Convert FEN position string to {square_name: piece_char} dict.      Empty squa`
+- **Thin community `Community 48`** (1 nodes): `Simulate a 2-square classifier error on an otherwise-correct e4 move.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 49`** (1 nodes): `Find squares that changed between two FEN positions.      Returns dict with:`
+- **Thin community `Community 49`** (1 nodes): `Return list of FEN position strings by replaying a move sequence.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 50`** (1 nodes): `Find the legal move that transforms the board from prev to curr position.`
+- **Thin community `Community 50`** (1 nodes): `Wraps the MediaPipe Hand Landmarker (Tasks API, mediapipe>=0.10) to detect`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 51`** (1 nodes): `Count number of matching squares between two FEN positions (out of 64).`
+- **Thin community `Community 51`** (1 nodes): `Download the .task model file if not already present.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 52`** (1 nodes): `Try to detect a legal move, with feedback-driven correction on failure.      I`
+- **Thin community `Community 52`** (1 nodes): `Detect hands in a BGR frame.          Parameters         ----------`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 53`** (1 nodes): `Score every legal move by its Bayesian posterior under the full     classifier`
+- **Thin community `Community 53`** (1 nodes): `Convert FEN position string to {square_name: piece_char} dict.      Empty squa`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 54`** (1 nodes): `Run the Bayesian-prior detector over a sequence of per-frame softmaxes.      M`
+- **Thin community `Community 54`** (1 nodes): `Find squares that changed between two FEN positions.      Returns dict with:`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 55`** (1 nodes): `Process a sequence of FEN positions and detect all moves.      Parameters`
+- **Thin community `Community 55`** (1 nodes): `Find the legal move that transforms the board from prev to curr position.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 56`** (1 nodes): `Majority-vote across K frames' predictions for each of 64 squares.      For ea`
+- **Thin community `Community 56`** (1 nodes): `Count number of matching squares between two FEN positions (out of 64).`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 57`** (1 nodes): `Process a sequence of per-frame predictions and detect all moves,     with feed`
+- **Thin community `Community 57`** (1 nodes): `Try to detect a legal move, with feedback-driven correction on failure.      I`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 58`** (1 nodes): `Maintains running board state and applies temporal heuristics to resolve     un`
+- **Thin community `Community 58`** (1 nodes): `Score every legal move by its Bayesian posterior under the full     classifier`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 59`** (1 nodes): `Parameters         ----------         prior_weight : float             Multip`
+- **Thin community `Community 59`** (1 nodes): `Run the Bayesian-prior detector over a sequence of per-frame softmaxes.      M`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 60`** (1 nodes): `Process one frame's softmax output and attempt to detect a move.          Para`
+- **Thin community `Community 60`** (1 nodes): `Process a sequence of FEN positions and detect all moves.      Parameters`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 61`** (1 nodes): `Reset to starting position.`
+- **Thin community `Community 61`** (1 nodes): `Majority-vote across K frames' predictions for each of 64 squares.      For ea`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 62`** (1 nodes): `Return a modified softmax dict with change-mask gating and         inventory co`
+- **Thin community `Community 62`** (1 nodes): `Process a sequence of per-frame predictions and detect all moves,     with feed`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 63`** (1 nodes): `Squash excess piece predictions on changed squares to enforce inventory.`
+- **Thin community `Community 63`** (1 nodes): `Maintains running board state and applies temporal heuristics to resolve     un`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 64`** (1 nodes): `Parameters         ----------         prior_weight : float             Multip`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 65`** (1 nodes): `Process one frame's softmax output and attempt to detect a move.          Para`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 66`** (1 nodes): `Reset to starting position.`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 67`** (1 nodes): `Return a modified softmax dict with change-mask gating and         inventory co`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 68`** (1 nodes): `Squash excess piece predictions on changed squares to enforce inventory.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `ChessPieceClassifier` connect `Community 0` to `Community 32`, `Community 1`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 7`, `Community 9`, `Community 21`, `Community 23`, `Community 24`, `Community 25`, `Community 26`, `Community 27`, `Community 28`, `Community 29`, `Community 30`, `Community 31`?**
-  _High betweenness centrality (0.475) - this node is a cross-community bridge._
+- **Why does `ChessPieceClassifier` connect `Community 0` to `Community 32`, `Community 33`, `Community 2`, `Community 1`, `Community 4`, `Community 5`, `Community 3`, `Community 7`, `Community 9`, `Community 21`, `Community 24`, `Community 25`, `Community 26`, `Community 27`, `Community 28`, `Community 29`, `Community 30`, `Community 31`?**
+  _High betweenness centrality (0.471) - this node is a cross-community bridge._
 - **Why does `process_game_session()` connect `Community 5` to `Community 0`, `Community 1`, `Community 2`, `Community 6`, `Community 7`, `Community 11`?**
-  _High betweenness centrality (0.204) - this node is a cross-community bridge._
-- **Why does `HandDetector` connect `Community 0` to `Community 32`, `Community 3`, `Community 4`, `Community 5`, `Community 7`, `Community 9`, `Community 18`, `Community 23`, `Community 24`, `Community 25`, `Community 26`, `Community 27`, `Community 28`, `Community 29`, `Community 30`, `Community 31`?**
-  _High betweenness centrality (0.098) - this node is a cross-community bridge._
+  _High betweenness centrality (0.202) - this node is a cross-community bridge._
+- **Why does `HandDetector` connect `Community 0` to `Community 32`, `Community 33`, `Community 3`, `Community 4`, `Community 5`, `Community 7`, `Community 9`, `Community 18`, `Community 22`, `Community 24`, `Community 25`, `Community 26`, `Community 27`, `Community 28`, `Community 29`, `Community 30`, `Community 31`?**
+  _High betweenness centrality (0.097) - this node is a cross-community bridge._
 - **Are the 288 inferred relationships involving `ChessPieceClassifier` (e.g. with `CaptureState` and `SessionState`) actually correct?**
   _`ChessPieceClassifier` has 288 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 262 inferred relationships involving `HandDetector` (e.g. with `CaptureState` and `SessionState`) actually correct?**

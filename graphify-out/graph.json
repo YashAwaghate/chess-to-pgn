@@ -369,7 +369,7 @@
       "source_file": ".graphify-slim-20260429_153932\\scripts\\debug_warp_g62.py",
       "source_location": "L1",
       "id": "f_chess_pgn_latest_repo_chess_to_pgn_graphify_slim_20260429_153932_scripts_debug_warp_g62_py",
-      "community": 22,
+      "community": 23,
       "norm_label": "debug_warp_g62.py"
     },
     {
@@ -377,7 +377,7 @@
       "file_type": "rationale",
       "source_file": ".graphify-slim-20260429_153932\\scripts\\debug_warp_g62.py",
       "source_location": "L1",
-      "community": 22,
+      "community": 23,
       "norm_label": "debug: visualize warped board for game 62 frame 0 with manual corners.",
       "id": "debug_warp_g62_rationale_1"
     },
@@ -1350,7 +1350,7 @@
       "source_file": "src\\capture\\hand_detector.py",
       "source_location": "L67",
       "id": "hand_detector_handdetector_init",
-      "community": 0,
+      "community": 22,
       "norm_label": ".__init__()"
     },
     {
@@ -1359,7 +1359,7 @@
       "source_file": "src\\capture\\hand_detector.py",
       "source_location": "L83",
       "id": "hand_detector_handdetector_ensure_model",
-      "community": 0,
+      "community": 22,
       "norm_label": "._ensure_model()"
     },
     {
@@ -1403,7 +1403,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\hand_detector.py",
       "source_location": "L84",
-      "community": 0,
+      "community": 22,
       "norm_label": "download the .task model file if not already present.",
       "id": "hand_detector_rationale_84"
     },
@@ -1422,7 +1422,7 @@
       "source_file": ".graphify-slim-20260429_153932\\src\\capture\\list_cameras.py",
       "source_location": "L1",
       "id": "f_chess_pgn_latest_repo_chess_to_pgn_graphify_slim_20260429_153932_src_capture_list_cameras_py",
-      "community": 33,
+      "community": 34,
       "norm_label": "list_cameras.py"
     },
     {
@@ -1431,7 +1431,7 @@
       "source_file": ".graphify-slim-20260429_153932\\src\\capture\\list_cameras.py",
       "source_location": "L3",
       "id": "list_cameras_list_ports",
-      "community": 33,
+      "community": 34,
       "norm_label": "list_ports()"
     },
     {
@@ -1845,7 +1845,7 @@
       "source_file": "src\\capture\\server.py",
       "source_location": "L757",
       "id": "server_gallery_list_sessions",
-      "community": 29,
+      "community": 33,
       "norm_label": "gallery_list_sessions()"
     },
     {
@@ -1854,7 +1854,7 @@
       "source_file": "src\\capture\\server.py",
       "source_location": "L784",
       "id": "server_gallery_get_session",
-      "community": 31,
+      "community": 24,
       "norm_label": "gallery_get_session()"
     },
     {
@@ -1863,7 +1863,7 @@
       "source_file": "src\\capture\\server.py",
       "source_location": "L842",
       "id": "server_gallery_get_image_typed",
-      "community": 27,
+      "community": 31,
       "norm_label": "gallery_get_image_typed()"
     },
     {
@@ -1872,7 +1872,7 @@
       "source_file": "src\\capture\\server.py",
       "source_location": "L861",
       "id": "server_gallery_get_image",
-      "community": 30,
+      "community": 28,
       "norm_label": "gallery_get_image()"
     },
     {
@@ -1908,7 +1908,7 @@
       "source_file": "src\\capture\\server.py",
       "source_location": "L1001",
       "id": "server_get_session_analysis",
-      "community": 24,
+      "community": 32,
       "norm_label": "get_session_analysis()"
     },
     {
@@ -1917,7 +1917,7 @@
       "source_file": "src\\capture\\server.py",
       "source_location": "L1012",
       "id": "server_labeling_list_sessions",
-      "community": 25,
+      "community": 26,
       "norm_label": "labeling_list_sessions()"
     },
     {
@@ -1926,7 +1926,7 @@
       "source_file": "src\\capture\\server.py",
       "source_location": "L1053",
       "id": "server_labeling_list_images",
-      "community": 26,
+      "community": 30,
       "norm_label": "labeling_list_images()"
     },
     {
@@ -1953,7 +1953,7 @@
       "source_file": "src\\capture\\server.py",
       "source_location": "L1156",
       "id": "server_labeling_save_labels",
-      "community": 28,
+      "community": 27,
       "norm_label": "labeling_save_labels()"
     },
     {
@@ -1962,7 +1962,7 @@
       "source_file": "src\\capture\\server.py",
       "source_location": "L1182",
       "id": "server_labeling_get_labels",
-      "community": 32,
+      "community": 29,
       "norm_label": "labeling_get_labels()"
     },
     {
@@ -1971,7 +1971,7 @@
       "source_file": "src\\capture\\server.py",
       "source_location": "L1203",
       "id": "server_get_eval_summary",
-      "community": 23,
+      "community": 25,
       "norm_label": "get_eval_summary()"
     },
     {
@@ -2177,7 +2177,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L758",
-      "community": 29,
+      "community": 33,
       "norm_label": "stream a single image \u2014 backward compat for old flat sessions or warped fallback",
       "id": "server_rationale_758"
     },
@@ -2186,7 +2186,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L785",
-      "community": 31,
+      "community": 24,
       "norm_label": "return game_info + warped/raw image lists for a session.",
       "id": "server_rationale_785"
     },
@@ -2195,7 +2195,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L843",
-      "community": 27,
+      "community": 31,
       "norm_label": "stream a single image from warped/ or raw/ subfolder.",
       "id": "server_rationale_843"
     },
@@ -2204,7 +2204,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L862",
-      "community": 30,
+      "community": 28,
       "norm_label": "run the trained ml corner detector on the provided camera frame.      returns",
       "id": "server_rationale_862"
     },
@@ -2240,7 +2240,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L1002",
-      "community": 24,
+      "community": 32,
       "norm_label": "return enriched analysis for a processed session (cached after /api/generate_pgn",
       "id": "server_rationale_1002"
     },
@@ -2249,7 +2249,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L1013",
-      "community": 25,
+      "community": 26,
       "norm_label": "list available sessions with image counts for labeling.",
       "id": "server_rationale_1013"
     },
@@ -2258,7 +2258,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L1054",
-      "community": 26,
+      "community": 30,
       "norm_label": "list warped images and existing labels for a session.",
       "id": "server_rationale_1054"
     },
@@ -2276,7 +2276,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L1157",
-      "community": 28,
+      "community": 27,
       "norm_label": "save manual labels for a specific image.",
       "id": "server_rationale_1157"
     },
@@ -2285,7 +2285,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L1183",
-      "community": 32,
+      "community": 29,
       "norm_label": "get existing labels for a specific image.",
       "id": "server_rationale_1183"
     },
@@ -2294,7 +2294,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L1204",
-      "community": 23,
+      "community": 25,
       "norm_label": "return structured benchmark results from the april 2026 chessred evaluation.",
       "id": "server_rationale_1204"
     },
@@ -3688,7 +3688,7 @@
       "label": ".push()",
       "file_type": "code",
       "source_file": "src\\pipeline\\move_detector.py",
-      "source_location": "L673",
+      "source_location": "L674",
       "id": "move_detector_temporalboardtracker_push",
       "community": 1,
       "norm_label": ".push()"
@@ -3697,7 +3697,7 @@
       "label": ".reset()",
       "file_type": "code",
       "source_file": "src\\pipeline\\move_detector.py",
-      "source_location": "L717",
+      "source_location": "L722",
       "id": "move_detector_temporalboardtracker_reset",
       "community": 1,
       "norm_label": ".reset()"
@@ -3706,7 +3706,7 @@
       "label": "._argmax_pos()",
       "file_type": "code",
       "source_file": "src\\pipeline\\move_detector.py",
-      "source_location": "L726",
+      "source_location": "L732",
       "id": "move_detector_temporalboardtracker_argmax_pos",
       "community": 1,
       "norm_label": "._argmax_pos()"
@@ -3715,7 +3715,7 @@
       "label": "._apply_temporal_heuristics()",
       "file_type": "code",
       "source_file": "src\\pipeline\\move_detector.py",
-      "source_location": "L733",
+      "source_location": "L739",
       "id": "move_detector_temporalboardtracker_apply_temporal_heuristics",
       "community": 1,
       "norm_label": "._apply_temporal_heuristics()"
@@ -3724,7 +3724,7 @@
       "label": "._squash_excess_pieces()",
       "file_type": "code",
       "source_file": "src\\pipeline\\move_detector.py",
-      "source_location": "L765",
+      "source_location": "L771",
       "id": "move_detector_temporalboardtracker_squash_excess_pieces",
       "community": 1,
       "norm_label": "._squash_excess_pieces()"
@@ -3850,37 +3850,37 @@
       "label": "Process one frame's softmax output and attempt to detect a move.          Para",
       "file_type": "rationale",
       "source_file": "src\\pipeline\\move_detector.py",
-      "source_location": "L674",
+      "source_location": "L675",
+      "id": "move_detector_rationale_675",
       "community": 1,
-      "norm_label": "process one frame's softmax output and attempt to detect a move.          para",
-      "id": "move_detector_rationale_674"
+      "norm_label": "process one frame's softmax output and attempt to detect a move.          para"
     },
     {
       "label": "Reset to starting position.",
       "file_type": "rationale",
       "source_file": "src\\pipeline\\move_detector.py",
-      "source_location": "L718",
+      "source_location": "L723",
+      "id": "move_detector_rationale_723",
       "community": 1,
-      "norm_label": "reset to starting position.",
-      "id": "move_detector_rationale_718"
+      "norm_label": "reset to starting position."
     },
     {
       "label": "Return a modified softmax dict with change-mask gating and         inventory co",
       "file_type": "rationale",
       "source_file": "src\\pipeline\\move_detector.py",
-      "source_location": "L734",
+      "source_location": "L740",
+      "id": "move_detector_rationale_740",
       "community": 1,
-      "norm_label": "return a modified softmax dict with change-mask gating and         inventory co",
-      "id": "move_detector_rationale_734"
+      "norm_label": "return a modified softmax dict with change-mask gating and         inventory co"
     },
     {
       "label": "Squash excess piece predictions on changed squares to enforce inventory.",
       "file_type": "rationale",
       "source_file": "src\\pipeline\\move_detector.py",
-      "source_location": "L767",
+      "source_location": "L773",
+      "id": "move_detector_rationale_773",
       "community": 1,
-      "norm_label": "squash excess piece predictions on changed squares to enforce inventory.",
-      "id": "move_detector_rationale_767"
+      "norm_label": "squash excess piece predictions on changed squares to enforce inventory."
     },
     {
       "label": "pgn_generator.py",
@@ -4059,7 +4059,7 @@
       "source_file": ".graphify-slim-20260429_153932\\src\\pipeline\\__init__.py",
       "source_location": "L1",
       "id": "f_chess_pgn_latest_repo_chess_to_pgn_graphify_slim_20260429_153932_src_pipeline_init_py",
-      "community": 34,
+      "community": 35,
       "norm_label": "__init__.py"
     },
     {
@@ -4248,7 +4248,7 @@
       "source_file": ".graphify-slim-20260429_153932\\src\\preprocessing\\test_orientation.py",
       "source_location": "L1",
       "id": "f_chess_pgn_latest_repo_chess_to_pgn_graphify_slim_20260429_153932_src_preprocessing_test_orientation_py",
-      "community": 35,
+      "community": 36,
       "norm_label": "test_orientation.py"
     },
     {
@@ -4882,13 +4882,13 @@
       "norm_label": ".test_confirms_legal_candidate_with_two_wrong_argmax_squares()"
     },
     {
-      "label": ".test_rejects_legal_candidate_with_more_than_two_wrong_argmax_squares()",
+      "label": ".test_initializes_from_first_unreachable_frame_without_advancing_board()",
       "file_type": "code",
       "source_file": "tests\\test_move_detector.py",
       "source_location": "L348",
-      "id": "test_move_detector_testtemporalboardtracker_test_rejects_legal_candidate_with_more_than_two_wrong_argmax_squares",
+      "id": "test_move_detector_testtemporalboardtracker_test_initializes_from_first_unreachable_frame_without_advancing_board",
       "community": 1,
-      "norm_label": ".test_rejects_legal_candidate_with_more_than_two_wrong_argmax_squares()"
+      "norm_label": ".test_initializes_from_first_unreachable_frame_without_advancing_board()"
     },
     {
       "label": "Tests for src/pipeline/move_detector.py  Coverage targets:   - fen_to_piece_map:",
@@ -5769,8 +5769,44 @@
       "source_file": ".graphify-slim-20260429_153932\\tests\\__init__.py",
       "source_location": "L1",
       "id": "f_chess_pgn_latest_repo_chess_to_pgn_graphify_slim_20260429_153932_tests_init_py",
-      "community": 36,
+      "community": 37,
       "norm_label": "__init__.py"
+    },
+    {
+      "label": "Process one frame's softmax output and attempt to detect a move.          Para",
+      "file_type": "rationale",
+      "source_file": "src\\pipeline\\move_detector.py",
+      "source_location": "L674",
+      "community": 38,
+      "norm_label": "process one frame's softmax output and attempt to detect a move.          para",
+      "id": "move_detector_rationale_674"
+    },
+    {
+      "label": "Reset to starting position.",
+      "file_type": "rationale",
+      "source_file": "src\\pipeline\\move_detector.py",
+      "source_location": "L718",
+      "community": 39,
+      "norm_label": "reset to starting position.",
+      "id": "move_detector_rationale_718"
+    },
+    {
+      "label": "Return a modified softmax dict with change-mask gating and         inventory co",
+      "file_type": "rationale",
+      "source_file": "src\\pipeline\\move_detector.py",
+      "source_location": "L734",
+      "community": 40,
+      "norm_label": "return a modified softmax dict with change-mask gating and         inventory co",
+      "id": "move_detector_rationale_734"
+    },
+    {
+      "label": "Squash excess piece predictions on changed squares to enforce inventory.",
+      "file_type": "rationale",
+      "source_file": "src\\pipeline\\move_detector.py",
+      "source_location": "L767",
+      "community": 41,
+      "norm_label": "squash excess piece predictions on changed squares to enforce inventory.",
+      "id": "move_detector_rationale_767"
     },
     {
       "label": "Decode a base64-encoded image to BGR ndarray. PIL only \u2014 no cv2.imdecode.",
@@ -5795,7 +5831,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L234",
-      "community": 3,
+      "community": 0,
       "norm_label": "shoelace polygon area for ordered 2d points, avoiding cv2 contour overloads.",
       "id": "capture_server_rationale_234"
     },
@@ -5813,7 +5849,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L275",
-      "community": 0,
+      "community": 3,
       "norm_label": "perspective-warp a bgr frame to size x size without cv2 point/image apis.",
       "id": "capture_server_rationale_275"
     },
@@ -5822,7 +5858,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L308",
-      "community": 0,
+      "community": 3,
       "norm_label": "rotate grid line coordinates to match a cv2.rotate() code applied to a 400\u00d7400 i",
       "id": "capture_server_rationale_308"
     },
@@ -5840,7 +5876,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L361",
-      "community": 3,
+      "community": 0,
       "norm_label": "return local path to corner_detector.pth, downloading from s3 if needed.",
       "id": "capture_server_rationale_361"
     },
@@ -5876,7 +5912,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L475",
-      "community": 3,
+      "community": 0,
       "norm_label": "step 0: save game metadata and move to calibrating.",
       "id": "capture_server_rationale_475"
     },
@@ -5885,7 +5921,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L511",
-      "community": 3,
+      "community": 0,
       "norm_label": "step 1: compute perspective transform, return warped preview.",
       "id": "capture_server_rationale_511"
     },
@@ -5903,7 +5939,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L561",
-      "community": 0,
+      "community": 3,
       "norm_label": "step 2: user corrects grid lines, then moves to orientation (a1 selection).",
       "id": "capture_server_rationale_561"
     },
@@ -5921,7 +5957,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L618",
-      "community": 0,
+      "community": 3,
       "norm_label": "start a new game while keeping the existing calibration (perspective,     grid,",
       "id": "capture_server_rationale_618"
     },
@@ -5930,7 +5966,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L714",
-      "community": 3,
+      "community": 0,
       "norm_label": "upload bytes directly to s3 (no temp file). returns true on success.",
       "id": "capture_server_rationale_714"
     },
@@ -6011,7 +6047,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L1013",
-      "community": 0,
+      "community": 3,
       "norm_label": "list available sessions with image counts for labeling.",
       "id": "capture_server_rationale_1013"
     },
@@ -6029,7 +6065,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L1096",
-      "community": 0,
+      "community": 3,
       "norm_label": "get classifier predictions for a specific image (auto-fill for labeling).",
       "id": "capture_server_rationale_1096"
     },
@@ -6038,7 +6074,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L1157",
-      "community": 3,
+      "community": 0,
       "norm_label": "save manual labels for a specific image.",
       "id": "capture_server_rationale_1157"
     },
@@ -6083,7 +6119,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L1417",
-      "community": 3,
+      "community": 0,
       "norm_label": "export labeled session frames as a training-format zip.      zip structure: {p",
       "id": "capture_server_rationale_1417"
     },
@@ -6092,7 +6128,7 @@
       "file_type": "rationale",
       "source_file": "src\\pipeline\\move_detector.py",
       "source_location": "L655",
-      "community": 37,
+      "community": 42,
       "norm_label": "parameters         ----------         prior_weight : float             multip",
       "id": "move_detector_rationale_655"
     },
@@ -6101,7 +6137,7 @@
       "file_type": "rationale",
       "source_file": "src\\pipeline\\move_detector.py",
       "source_location": "L673",
-      "community": 38,
+      "community": 43,
       "norm_label": "process one frame's softmax output and attempt to detect a move.          para",
       "id": "move_detector_rationale_673"
     },
@@ -6110,7 +6146,7 @@
       "file_type": "rationale",
       "source_file": "src\\pipeline\\move_detector.py",
       "source_location": "L705",
-      "community": 39,
+      "community": 44,
       "norm_label": "reset to starting position.",
       "id": "move_detector_rationale_705"
     },
@@ -6119,7 +6155,7 @@
       "file_type": "rationale",
       "source_file": "src\\pipeline\\move_detector.py",
       "source_location": "L721",
-      "community": 40,
+      "community": 45,
       "norm_label": "return a modified softmax dict with change-mask gating and         inventory co",
       "id": "move_detector_rationale_721"
     },
@@ -6128,7 +6164,7 @@
       "file_type": "rationale",
       "source_file": "src\\pipeline\\move_detector.py",
       "source_location": "L754",
-      "community": 41,
+      "community": 46,
       "norm_label": "squash excess piece predictions on changed squares to enforce inventory.",
       "id": "move_detector_rationale_754"
     },
@@ -6137,7 +6173,7 @@
       "file_type": "rationale",
       "source_file": ".graphify-slim-20260429_153932\\tests\\test_move_detector.py",
       "source_location": "L40",
-      "community": 42,
+      "community": 47,
       "norm_label": "build a perfect predictions dict from the current board state.",
       "id": "test_move_detector_rationale_40"
     },
@@ -6146,7 +6182,7 @@
       "file_type": "rationale",
       "source_file": ".graphify-slim-20260429_153932\\tests\\test_move_detector.py",
       "source_location": "L166",
-      "community": 43,
+      "community": 48,
       "norm_label": "simulate a 2-square classifier error on an otherwise-correct e4 move.",
       "id": "test_move_detector_rationale_166"
     },
@@ -6155,7 +6191,7 @@
       "file_type": "rationale",
       "source_file": ".graphify-slim-20260429_153932\\tests\\test_move_detector.py",
       "source_location": "L232",
-      "community": 44,
+      "community": 49,
       "norm_label": "return list of fen position strings by replaying a move sequence.",
       "id": "test_move_detector_rationale_232"
     },
@@ -6164,7 +6200,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L181",
-      "community": 3,
+      "community": 0,
       "norm_label": "decode a base64-encoded image to bgr ndarray. pil only \u2014 no cv2.imdecode.",
       "id": "capture_server_rationale_181"
     },
@@ -6182,7 +6218,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L233",
-      "community": 0,
+      "community": 3,
       "norm_label": "shoelace polygon area for ordered 2d points, avoiding cv2 contour overloads.",
       "id": "capture_server_rationale_233"
     },
@@ -6191,7 +6227,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L239",
-      "community": 3,
+      "community": 0,
       "norm_label": "compute a 3x3 homography from four point pairs without cv2 point apis.",
       "id": "capture_server_rationale_239"
     },
@@ -6200,7 +6236,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L274",
-      "community": 3,
+      "community": 0,
       "norm_label": "perspective-warp a bgr frame to size x size without cv2 point/image apis.",
       "id": "capture_server_rationale_274"
     },
@@ -6209,7 +6245,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L307",
-      "community": 3,
+      "community": 0,
       "norm_label": "rotate grid line coordinates to match a cv2.rotate() code applied to a 400\u00d7400 i",
       "id": "capture_server_rationale_307"
     },
@@ -6227,7 +6263,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L360",
-      "community": 0,
+      "community": 3,
       "norm_label": "run the trained model and return [tl, tr, br, bl] points in frame pixels.",
       "id": "capture_server_rationale_360"
     },
@@ -6263,7 +6299,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L486",
-      "community": 0,
+      "community": 3,
       "norm_label": "step 1: compute perspective transform, return warped preview.",
       "id": "capture_server_rationale_486"
     },
@@ -6290,7 +6326,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L574",
-      "community": 0,
+      "community": 3,
       "norm_label": "record the final game result and flush game_info.json.",
       "id": "capture_server_rationale_574"
     },
@@ -6299,7 +6335,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L593",
-      "community": 0,
+      "community": 3,
       "norm_label": "start a new game while keeping the existing calibration (perspective,     grid,",
       "id": "capture_server_rationale_593"
     },
@@ -6326,7 +6362,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L760",
-      "community": 3,
+      "community": 0,
       "norm_label": "return game_info + warped/raw image lists for a session.",
       "id": "capture_server_rationale_760"
     },
@@ -6344,7 +6380,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L837",
-      "community": 3,
+      "community": 0,
       "norm_label": "stream a single image \u2014 backward compat for old flat sessions or warped fallback",
       "id": "capture_server_rationale_837"
     },
@@ -6353,7 +6389,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L881",
-      "community": 0,
+      "community": 3,
       "norm_label": "detect corners and immediately advance to grid correction.",
       "id": "capture_server_rationale_881"
     },
@@ -6380,7 +6416,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L988",
-      "community": 3,
+      "community": 0,
       "norm_label": "list available sessions with image counts for labeling.",
       "id": "capture_server_rationale_988"
     },
@@ -6434,7 +6470,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L1210",
-      "community": 0,
+      "community": 3,
       "norm_label": "compute per-square accuracy for a session that has ground-truth labels.",
       "id": "capture_server_rationale_1210"
     },
@@ -6443,7 +6479,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L1299",
-      "community": 0,
+      "community": 3,
       "norm_label": "auto-label all frames using the classifier's per-square softmax.      frames w",
       "id": "capture_server_rationale_1299"
     },
@@ -6452,7 +6488,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L1392",
-      "community": 0,
+      "community": 3,
       "norm_label": "export labeled session frames as a training-format zip.      zip structure: {p",
       "id": "capture_server_rationale_1392"
     },
@@ -6470,7 +6506,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L207",
-      "community": 3,
+      "community": 0,
       "norm_label": "rotate grid line coordinates to match a cv2.rotate() code applied to a 400\u00d7400 i",
       "id": "server_rationale_207"
     },
@@ -6479,7 +6515,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L233",
-      "community": 3,
+      "community": 0,
       "norm_label": "shoelace polygon area for ordered 2d points, avoiding cv2 contour overloads.",
       "id": "server_rationale_233"
     },
@@ -6515,7 +6551,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L329",
-      "community": 0,
+      "community": 3,
       "norm_label": "uniform 8\u00d78 grid \u2014 after perspective warp to 400\u00d7400, grid is evenly spaced.",
       "id": "server_rationale_329"
     },
@@ -6533,7 +6569,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L397",
-      "community": 3,
+      "community": 0,
       "norm_label": "write (or update) game_info.json \u2014 to s3 if configured, else locally.",
       "id": "server_rationale_397"
     },
@@ -6542,7 +6578,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L417",
-      "community": 0,
+      "community": 3,
       "norm_label": "returns the warped setup frame with the detected grid drawn on it \u2014 useful for v",
       "id": "server_rationale_417"
     },
@@ -6569,7 +6605,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L504",
-      "community": 3,
+      "community": 0,
       "norm_label": "step 3: user identifies a1. rotate board so a1 is always bottom-left, then start",
       "id": "server_rationale_504"
     },
@@ -6578,7 +6614,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L536",
-      "community": 0,
+      "community": 3,
       "norm_label": "step 2: user corrects grid lines, then moves to orientation (a1 selection).",
       "id": "server_rationale_536"
     },
@@ -6587,7 +6623,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L574",
-      "community": 3,
+      "community": 0,
       "norm_label": "record the final game result and flush game_info.json.",
       "id": "server_rationale_574"
     },
@@ -6614,7 +6650,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L733",
-      "community": 0,
+      "community": 3,
       "norm_label": "list all session folders in s3 (or local fallback).",
       "id": "server_rationale_733"
     },
@@ -6623,7 +6659,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L760",
-      "community": 3,
+      "community": 0,
       "norm_label": "process a captured session and generate pgn.",
       "id": "server_rationale_760"
     },
@@ -6632,7 +6668,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L818",
-      "community": 3,
+      "community": 0,
       "norm_label": "stream a single image from warped/ or raw/ subfolder.",
       "id": "server_rationale_818"
     },
@@ -6686,7 +6722,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L1029",
-      "community": 3,
+      "community": 0,
       "norm_label": "return structured benchmark results from the april 2026 chessred evaluation.",
       "id": "server_rationale_1029"
     },
@@ -6731,7 +6767,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L1210",
-      "community": 0,
+      "community": 3,
       "norm_label": "compute per-square accuracy for a session that has ground-truth labels.",
       "id": "server_rationale_1210"
     },
@@ -6749,7 +6785,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L1392",
-      "community": 3,
+      "community": 0,
       "norm_label": "export labeled session frames as a training-format zip.      zip structure: {p",
       "id": "server_rationale_1392"
     },
@@ -6758,7 +6794,7 @@
       "file_type": "rationale",
       "source_file": ".graphify-slim-20260429_153932\\src\\capture\\hand_detector.py",
       "source_location": "L32",
-      "community": 45,
+      "community": 50,
       "norm_label": "wraps the mediapipe hand landmarker (tasks api, mediapipe>=0.10) to detect",
       "id": "hand_detector_rationale_32"
     },
@@ -6767,7 +6803,7 @@
       "file_type": "rationale",
       "source_file": ".graphify-slim-20260429_153932\\src\\capture\\hand_detector.py",
       "source_location": "L60",
-      "community": 46,
+      "community": 51,
       "norm_label": "download the .task model file if not already present.",
       "id": "hand_detector_rationale_60"
     },
@@ -6776,7 +6812,7 @@
       "file_type": "rationale",
       "source_file": ".graphify-slim-20260429_153932\\src\\capture\\hand_detector.py",
       "source_location": "L70",
-      "community": 47,
+      "community": 52,
       "norm_label": "detect hands in a bgr frame.          parameters         ----------",
       "id": "hand_detector_rationale_70"
     },
@@ -6785,7 +6821,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L180",
-      "community": 3,
+      "community": 0,
       "norm_label": "decode a base64-encoded image to bgr ndarray. pil only \u2014 no cv2.imdecode.",
       "id": "server_rationale_180"
     },
@@ -6812,7 +6848,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L238",
-      "community": 3,
+      "community": 0,
       "norm_label": "write (or update) game_info.json \u2014 to s3 if configured, else locally.",
       "id": "server_rationale_238"
     },
@@ -6875,7 +6911,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L425",
-      "community": 3,
+      "community": 0,
       "norm_label": "record the final game result and flush game_info.json.",
       "id": "server_rationale_425"
     },
@@ -6893,7 +6929,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L495",
-      "community": 0,
+      "community": 3,
       "norm_label": "record the final game result and flush game_info.json.",
       "id": "server_rationale_495"
     },
@@ -6911,7 +6947,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L610",
-      "community": 3,
+      "community": 0,
       "norm_label": "upload bytes directly to s3 (no temp file). returns true on success.",
       "id": "server_rationale_610"
     },
@@ -6938,7 +6974,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L739",
-      "community": 3,
+      "community": 0,
       "norm_label": "stream a single image from warped/ or raw/ subfolder.",
       "id": "server_rationale_739"
     },
@@ -6947,7 +6983,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L783",
-      "community": 0,
+      "community": 3,
       "norm_label": "run the trained ml corner detector on the provided camera frame.      returns",
       "id": "server_rationale_783"
     },
@@ -6983,7 +7019,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L949",
-      "community": 3,
+      "community": 0,
       "norm_label": "list warped images and existing labels for a session.",
       "id": "server_rationale_949"
     },
@@ -6992,7 +7028,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L991",
-      "community": 0,
+      "community": 3,
       "norm_label": "get classifier predictions for a specific image (auto-fill for labeling).",
       "id": "server_rationale_991"
     },
@@ -7046,7 +7082,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L1312",
-      "community": 3,
+      "community": 0,
       "norm_label": "export labeled session frames as a training-format zip.      zip structure: {p",
       "id": "server_rationale_1312"
     },
@@ -7055,7 +7091,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L261",
-      "community": 0,
+      "community": 3,
       "norm_label": "uniform 8\u00d78 grid \u2014 after perspective warp to 400\u00d7400, grid is evenly spaced.",
       "id": "server_rationale_261"
     },
@@ -7073,7 +7109,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L290",
-      "community": 0,
+      "community": 3,
       "norm_label": "returns the warped setup frame with the detected grid drawn on it \u2014 useful for v",
       "id": "server_rationale_290"
     },
@@ -7082,7 +7118,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L321",
-      "community": 0,
+      "community": 3,
       "norm_label": "step 0: save game metadata and move to calibrating.",
       "id": "server_rationale_321"
     },
@@ -7145,7 +7181,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L649",
-      "community": 0,
+      "community": 3,
       "norm_label": "return game_info + warped/raw image lists for a session.",
       "id": "server_rationale_649"
     },
@@ -7181,7 +7217,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L799",
-      "community": 0,
+      "community": 3,
       "norm_label": "process a captured session and generate pgn.",
       "id": "server_rationale_799"
     },
@@ -7199,7 +7235,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L876",
-      "community": 3,
+      "community": 0,
       "norm_label": "list available sessions with image counts for labeling.",
       "id": "server_rationale_876"
     },
@@ -7226,7 +7262,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L1020",
-      "community": 0,
+      "community": 3,
       "norm_label": "save manual labels for a specific image.",
       "id": "server_rationale_1020"
     },
@@ -7235,7 +7271,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L1046",
-      "community": 0,
+      "community": 3,
       "norm_label": "get existing labels for a specific image.",
       "id": "server_rationale_1046"
     },
@@ -7271,7 +7307,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L1280",
-      "community": 3,
+      "community": 0,
       "norm_label": "export labeled session frames as a training-format zip.      zip structure: {p",
       "id": "server_rationale_1280"
     },
@@ -7298,7 +7334,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L258",
-      "community": 0,
+      "community": 3,
       "norm_label": "returns the warped setup frame with the detected grid drawn on it \u2014 useful for v",
       "id": "server_rationale_258"
     },
@@ -7307,7 +7343,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L289",
-      "community": 3,
+      "community": 0,
       "norm_label": "step 0: save game metadata and move to calibrating.",
       "id": "server_rationale_289"
     },
@@ -7316,7 +7352,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L325",
-      "community": 0,
+      "community": 3,
       "norm_label": "step 1: compute perspective transform, return warped preview.",
       "id": "server_rationale_325"
     },
@@ -7334,7 +7370,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L444",
-      "community": 3,
+      "community": 0,
       "norm_label": "start a new game while keeping the existing calibration (perspective,     grid,",
       "id": "server_rationale_444"
     },
@@ -7343,7 +7379,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L540",
-      "community": 0,
+      "community": 3,
       "norm_label": "upload bytes directly to s3 (no temp file). returns true on success.",
       "id": "server_rationale_540"
     },
@@ -7352,7 +7388,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L584",
-      "community": 3,
+      "community": 0,
       "norm_label": "list all session folders in s3 (or local fallback).",
       "id": "server_rationale_584"
     },
@@ -7361,7 +7397,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L611",
-      "community": 0,
+      "community": 3,
       "norm_label": "return game_info + warped/raw image lists for a session.",
       "id": "server_rationale_611"
     },
@@ -7370,7 +7406,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L669",
-      "community": 0,
+      "community": 3,
       "norm_label": "stream a single image from warped/ or raw/ subfolder.",
       "id": "server_rationale_669"
     },
@@ -7379,7 +7415,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L688",
-      "community": 0,
+      "community": 3,
       "norm_label": "stream a single image \u2014 backward compat for old flat sessions or warped fallback",
       "id": "server_rationale_688"
     },
@@ -7388,7 +7424,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L713",
-      "community": 0,
+      "community": 3,
       "norm_label": "run the trained ml corner detector on the provided camera frame.      returns",
       "id": "server_rationale_713"
     },
@@ -7397,7 +7433,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L761",
-      "community": 3,
+      "community": 0,
       "norm_label": "process a captured session and generate pgn.",
       "id": "server_rationale_761"
     },
@@ -7415,7 +7451,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L838",
-      "community": 3,
+      "community": 0,
       "norm_label": "list available sessions with image counts for labeling.",
       "id": "server_rationale_838"
     },
@@ -7424,7 +7460,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L879",
-      "community": 3,
+      "community": 0,
       "norm_label": "list warped images and existing labels for a session.",
       "id": "server_rationale_879"
     },
@@ -7487,7 +7523,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L826",
-      "community": 0,
+      "community": 3,
       "norm_label": "return enriched analysis for a processed session (cached after /api/generate_pgn",
       "id": "server_rationale_826"
     },
@@ -7496,7 +7532,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L878",
-      "community": 3,
+      "community": 0,
       "norm_label": "list warped images and existing labels for a session.",
       "id": "server_rationale_878"
     },
@@ -7505,7 +7541,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L920",
-      "community": 3,
+      "community": 0,
       "norm_label": "get classifier predictions for a specific image (auto-fill for labeling).",
       "id": "server_rationale_920"
     },
@@ -7514,7 +7550,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L981",
-      "community": 0,
+      "community": 3,
       "norm_label": "save manual labels for a specific image.",
       "id": "server_rationale_981"
     },
@@ -7523,7 +7559,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L1007",
-      "community": 3,
+      "community": 0,
       "norm_label": "get existing labels for a specific image.",
       "id": "server_rationale_1007"
     },
@@ -7541,7 +7577,7 @@
       "file_type": "rationale",
       "source_file": "src\\capture\\server.py",
       "source_location": "L1059",
-      "community": 0,
+      "community": 3,
       "norm_label": "compute per-square accuracy for a session that has ground-truth labels.",
       "id": "server_rationale_1059"
     },
@@ -7757,7 +7793,7 @@
       "file_type": "rationale",
       "source_file": ".graphify-slim-20260429_153932\\src\\pipeline\\move_detector.py",
       "source_location": "L20",
-      "community": 48,
+      "community": 53,
       "norm_label": "convert fen position string to {square_name: piece_char} dict.      empty squa",
       "id": "move_detector_rationale_20"
     },
@@ -7766,7 +7802,7 @@
       "file_type": "rationale",
       "source_file": ".graphify-slim-20260429_153932\\src\\pipeline\\move_detector.py",
       "source_location": "L42",
-      "community": 49,
+      "community": 54,
       "norm_label": "find squares that changed between two fen positions.      returns dict with:",
       "id": "move_detector_rationale_42"
     },
@@ -7775,7 +7811,7 @@
       "file_type": "rationale",
       "source_file": ".graphify-slim-20260429_153932\\src\\pipeline\\move_detector.py",
       "source_location": "L74",
-      "community": 50,
+      "community": 55,
       "norm_label": "find the legal move that transforms the board from prev to curr position.",
       "id": "move_detector_rationale_74"
     },
@@ -7784,7 +7820,7 @@
       "file_type": "rationale",
       "source_file": ".graphify-slim-20260429_153932\\src\\pipeline\\move_detector.py",
       "source_location": "L116",
-      "community": 51,
+      "community": 56,
       "norm_label": "count number of matching squares between two fen positions (out of 64).",
       "id": "move_detector_rationale_116"
     },
@@ -7793,7 +7829,7 @@
       "file_type": "rationale",
       "source_file": ".graphify-slim-20260429_153932\\src\\pipeline\\move_detector.py",
       "source_location": "L139",
-      "community": 52,
+      "community": 57,
       "norm_label": "try to detect a legal move, with feedback-driven correction on failure.      i",
       "id": "move_detector_rationale_139"
     },
@@ -7802,7 +7838,7 @@
       "file_type": "rationale",
       "source_file": ".graphify-slim-20260429_153932\\src\\pipeline\\move_detector.py",
       "source_location": "L233",
-      "community": 53,
+      "community": 58,
       "norm_label": "score every legal move by its bayesian posterior under the full     classifier",
       "id": "move_detector_rationale_233"
     },
@@ -7811,7 +7847,7 @@
       "file_type": "rationale",
       "source_file": ".graphify-slim-20260429_153932\\src\\pipeline\\move_detector.py",
       "source_location": "L321",
-      "community": 54,
+      "community": 59,
       "norm_label": "run the bayesian-prior detector over a sequence of per-frame softmaxes.      m",
       "id": "move_detector_rationale_321"
     },
@@ -7820,7 +7856,7 @@
       "file_type": "rationale",
       "source_file": ".graphify-slim-20260429_153932\\src\\pipeline\\move_detector.py",
       "source_location": "L378",
-      "community": 55,
+      "community": 60,
       "norm_label": "process a sequence of fen positions and detect all moves.      parameters",
       "id": "move_detector_rationale_378"
     },
@@ -7829,7 +7865,7 @@
       "file_type": "rationale",
       "source_file": ".graphify-slim-20260429_153932\\src\\pipeline\\move_detector.py",
       "source_location": "L436",
-      "community": 56,
+      "community": 61,
       "norm_label": "majority-vote across k frames' predictions for each of 64 squares.      for ea",
       "id": "move_detector_rationale_436"
     },
@@ -7838,7 +7874,7 @@
       "file_type": "rationale",
       "source_file": ".graphify-slim-20260429_153932\\src\\pipeline\\move_detector.py",
       "source_location": "L477",
-      "community": 57,
+      "community": 62,
       "norm_label": "process a sequence of per-frame predictions and detect all moves,     with feed",
       "id": "move_detector_rationale_477"
     },
@@ -7847,7 +7883,7 @@
       "file_type": "rationale",
       "source_file": ".graphify-slim-20260429_153932\\src\\pipeline\\move_detector.py",
       "source_location": "L612",
-      "community": 58,
+      "community": 63,
       "norm_label": "maintains running board state and applies temporal heuristics to resolve     un",
       "id": "move_detector_rationale_612"
     },
@@ -7856,7 +7892,7 @@
       "file_type": "rationale",
       "source_file": ".graphify-slim-20260429_153932\\src\\pipeline\\move_detector.py",
       "source_location": "L645",
-      "community": 59,
+      "community": 64,
       "norm_label": "parameters         ----------         prior_weight : float             multip",
       "id": "move_detector_rationale_645"
     },
@@ -7865,7 +7901,7 @@
       "file_type": "rationale",
       "source_file": ".graphify-slim-20260429_153932\\src\\pipeline\\move_detector.py",
       "source_location": "L663",
-      "community": 60,
+      "community": 65,
       "norm_label": "process one frame's softmax output and attempt to detect a move.          para",
       "id": "move_detector_rationale_663"
     },
@@ -7874,7 +7910,7 @@
       "file_type": "rationale",
       "source_file": ".graphify-slim-20260429_153932\\src\\pipeline\\move_detector.py",
       "source_location": "L695",
-      "community": 61,
+      "community": 66,
       "norm_label": "reset to starting position.",
       "id": "move_detector_rationale_695"
     },
@@ -7883,7 +7919,7 @@
       "file_type": "rationale",
       "source_file": ".graphify-slim-20260429_153932\\src\\pipeline\\move_detector.py",
       "source_location": "L711",
-      "community": 62,
+      "community": 67,
       "norm_label": "return a modified softmax dict with change-mask gating and         inventory co",
       "id": "move_detector_rationale_711"
     },
@@ -7892,7 +7928,7 @@
       "file_type": "rationale",
       "source_file": ".graphify-slim-20260429_153932\\src\\pipeline\\move_detector.py",
       "source_location": "L744",
-      "community": 63,
+      "community": 68,
       "norm_label": "squash excess piece predictions on changed squares to enforce inventory.",
       "id": "move_detector_rationale_744"
     },
@@ -25725,7 +25761,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "src\\pipeline\\move_detector.py",
-      "source_location": "L736",
+      "source_location": "L742",
       "weight": 1.0,
       "_src": "move_detector_temporalboardtracker_apply_temporal_heuristics",
       "_tgt": "move_detector_fen_to_piece_map",
@@ -25869,10 +25905,10 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "src\\pipeline\\move_detector.py",
-      "source_location": "L99",
+      "source_location": "L694",
       "weight": 1.0,
-      "_src": "move_detector_detect_move",
-      "_tgt": "move_detector_temporalboardtracker_push",
+      "_src": "move_detector_temporalboardtracker_push",
+      "_tgt": "move_detector_detect_move",
       "source": "move_detector_detect_move",
       "target": "move_detector_temporalboardtracker_push",
       "confidence_score": 1.0
@@ -26010,18 +26046,6 @@
       "confidence_score": 1.0
     },
     {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "src\\pipeline\\move_detector.py",
-      "source_location": "L708",
-      "weight": 1.0,
-      "_src": "move_detector_temporalboardtracker_push",
-      "_tgt": "move_detector_position_similarity",
-      "source": "move_detector_position_similarity",
-      "target": "move_detector_temporalboardtracker_push",
-      "confidence_score": 1.0
-    },
-    {
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "src\\pipeline\\move_detector.py",
@@ -26133,7 +26157,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "src\\pipeline\\move_detector.py",
-      "source_location": "L693",
+      "source_location": "L702",
       "weight": 1.0,
       "_src": "move_detector_temporalboardtracker_push",
       "_tgt": "move_detector_detect_move_with_prior",
@@ -26421,7 +26445,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "src\\pipeline\\move_detector.py",
-      "source_location": "L673",
+      "source_location": "L674",
       "weight": 1.0,
       "_src": "move_detector_temporalboardtracker",
       "_tgt": "move_detector_temporalboardtracker_push",
@@ -26433,7 +26457,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "src\\pipeline\\move_detector.py",
-      "source_location": "L717",
+      "source_location": "L722",
       "weight": 1.0,
       "_src": "move_detector_temporalboardtracker",
       "_tgt": "move_detector_temporalboardtracker_reset",
@@ -26445,7 +26469,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "src\\pipeline\\move_detector.py",
-      "source_location": "L726",
+      "source_location": "L732",
       "weight": 1.0,
       "_src": "move_detector_temporalboardtracker",
       "_tgt": "move_detector_temporalboardtracker_argmax_pos",
@@ -26457,7 +26481,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "src\\pipeline\\move_detector.py",
-      "source_location": "L733",
+      "source_location": "L739",
       "weight": 1.0,
       "_src": "move_detector_temporalboardtracker",
       "_tgt": "move_detector_temporalboardtracker_apply_temporal_heuristics",
@@ -26469,7 +26493,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "src\\pipeline\\move_detector.py",
-      "source_location": "L765",
+      "source_location": "L771",
       "weight": 1.0,
       "_src": "move_detector_temporalboardtracker",
       "_tgt": "move_detector_temporalboardtracker_squash_excess_pieces",
@@ -26664,10 +26688,10 @@
       "source_file": "tests\\test_move_detector.py",
       "source_location": "L349",
       "weight": 1.0,
-      "_src": "move_detector_temporalboardtracker",
-      "_tgt": "test_move_detector_testtemporalboardtracker_test_rejects_legal_candidate_with_more_than_two_wrong_argmax_squares",
+      "_src": "test_move_detector_testtemporalboardtracker_test_initializes_from_first_unreachable_frame_without_advancing_board",
+      "_tgt": "move_detector_temporalboardtracker",
       "source": "move_detector_temporalboardtracker",
-      "target": "test_move_detector_testtemporalboardtracker_test_rejects_legal_candidate_with_more_than_two_wrong_argmax_squares"
+      "target": "test_move_detector_testtemporalboardtracker_test_initializes_from_first_unreachable_frame_without_advancing_board"
     },
     {
       "relation": "rationale_for",
@@ -26685,7 +26709,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "src\\pipeline\\move_detector.py",
-      "source_location": "L688",
+      "source_location": "L689",
       "weight": 1.0,
       "_src": "move_detector_temporalboardtracker_push",
       "_tgt": "move_detector_temporalboardtracker_argmax_pos",
@@ -26694,27 +26718,15 @@
       "confidence_score": 1.0
     },
     {
-      "relation": "calls",
-      "confidence": "EXTRACTED",
-      "source_file": "src\\pipeline\\move_detector.py",
-      "source_location": "L692",
-      "weight": 1.0,
-      "_src": "move_detector_temporalboardtracker_push",
-      "_tgt": "move_detector_temporalboardtracker_apply_temporal_heuristics",
-      "source": "move_detector_temporalboardtracker_push",
-      "target": "move_detector_temporalboardtracker_apply_temporal_heuristics",
-      "confidence_score": 1.0
-    },
-    {
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "src\\pipeline\\move_detector.py",
-      "source_location": "L674",
+      "source_location": "L675",
       "weight": 1.0,
-      "_src": "move_detector_rationale_674",
+      "_src": "move_detector_rationale_675",
       "_tgt": "move_detector_temporalboardtracker_push",
       "source": "move_detector_temporalboardtracker_push",
-      "target": "move_detector_rationale_674",
+      "target": "move_detector_rationale_675",
       "confidence_score": 1.0
     },
     {
@@ -26736,28 +26748,28 @@
       "source_file": "tests\\test_move_detector.py",
       "source_location": "L357",
       "weight": 1.0,
-      "_src": "move_detector_temporalboardtracker_push",
-      "_tgt": "test_move_detector_testtemporalboardtracker_test_rejects_legal_candidate_with_more_than_two_wrong_argmax_squares",
+      "_src": "test_move_detector_testtemporalboardtracker_test_initializes_from_first_unreachable_frame_without_advancing_board",
+      "_tgt": "move_detector_temporalboardtracker_push",
       "source": "move_detector_temporalboardtracker_push",
-      "target": "test_move_detector_testtemporalboardtracker_test_rejects_legal_candidate_with_more_than_two_wrong_argmax_squares"
+      "target": "test_move_detector_testtemporalboardtracker_test_initializes_from_first_unreachable_frame_without_advancing_board"
     },
     {
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "src\\pipeline\\move_detector.py",
-      "source_location": "L718",
+      "source_location": "L723",
       "weight": 1.0,
-      "_src": "move_detector_rationale_718",
+      "_src": "move_detector_rationale_723",
       "_tgt": "move_detector_temporalboardtracker_reset",
       "source": "move_detector_temporalboardtracker_reset",
-      "target": "move_detector_rationale_718",
+      "target": "move_detector_rationale_723",
       "confidence_score": 1.0
     },
     {
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "src\\pipeline\\move_detector.py",
-      "source_location": "L737",
+      "source_location": "L743",
       "weight": 1.0,
       "_src": "move_detector_temporalboardtracker_apply_temporal_heuristics",
       "_tgt": "move_detector_temporalboardtracker_argmax_pos",
@@ -26769,7 +26781,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "src\\pipeline\\move_detector.py",
-      "source_location": "L761",
+      "source_location": "L767",
       "weight": 1.0,
       "_src": "move_detector_temporalboardtracker_apply_temporal_heuristics",
       "_tgt": "move_detector_temporalboardtracker_squash_excess_pieces",
@@ -26781,24 +26793,24 @@
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "src\\pipeline\\move_detector.py",
-      "source_location": "L734",
+      "source_location": "L740",
       "weight": 1.0,
-      "_src": "move_detector_rationale_734",
+      "_src": "move_detector_rationale_740",
       "_tgt": "move_detector_temporalboardtracker_apply_temporal_heuristics",
       "source": "move_detector_temporalboardtracker_apply_temporal_heuristics",
-      "target": "move_detector_rationale_734",
+      "target": "move_detector_rationale_740",
       "confidence_score": 1.0
     },
     {
       "relation": "rationale_for",
       "confidence": "EXTRACTED",
       "source_file": "src\\pipeline\\move_detector.py",
-      "source_location": "L767",
+      "source_location": "L773",
       "weight": 1.0,
-      "_src": "move_detector_rationale_767",
+      "_src": "move_detector_rationale_773",
       "_tgt": "move_detector_temporalboardtracker_squash_excess_pieces",
       "source": "move_detector_temporalboardtracker_squash_excess_pieces",
-      "target": "move_detector_rationale_767",
+      "target": "move_detector_rationale_773",
       "confidence_score": 1.0
     },
     {
@@ -28715,10 +28727,10 @@
       "source_file": "tests\\test_move_detector.py",
       "source_location": "L353",
       "weight": 1.0,
-      "_src": "test_move_detector_testtemporalboardtracker_test_rejects_legal_candidate_with_more_than_two_wrong_argmax_squares",
+      "_src": "test_move_detector_testtemporalboardtracker_test_initializes_from_first_unreachable_frame_without_advancing_board",
       "_tgt": "test_move_detector_probs",
       "source": "test_move_detector_probs",
-      "target": "test_move_detector_testtemporalboardtracker_test_rejects_legal_candidate_with_more_than_two_wrong_argmax_squares",
+      "target": "test_move_detector_testtemporalboardtracker_test_initializes_from_first_unreachable_frame_without_advancing_board",
       "confidence_score": 1.0
     },
     {
@@ -28739,10 +28751,10 @@
       "source_file": "tests\\test_move_detector.py",
       "source_location": "L352",
       "weight": 1.0,
-      "_src": "test_move_detector_testtemporalboardtracker_test_rejects_legal_candidate_with_more_than_two_wrong_argmax_squares",
+      "_src": "test_move_detector_testtemporalboardtracker_test_initializes_from_first_unreachable_frame_without_advancing_board",
       "_tgt": "test_move_detector_board_full_probs",
       "source": "test_move_detector_board_full_probs",
-      "target": "test_move_detector_testtemporalboardtracker_test_rejects_legal_candidate_with_more_than_two_wrong_argmax_squares",
+      "target": "test_move_detector_testtemporalboardtracker_test_initializes_from_first_unreachable_frame_without_advancing_board",
       "confidence_score": 1.0
     },
     {
@@ -29208,9 +29220,9 @@
       "source_location": "L348",
       "weight": 1.0,
       "_src": "test_move_detector_testtemporalboardtracker",
-      "_tgt": "test_move_detector_testtemporalboardtracker_test_rejects_legal_candidate_with_more_than_two_wrong_argmax_squares",
+      "_tgt": "test_move_detector_testtemporalboardtracker_test_initializes_from_first_unreachable_frame_without_advancing_board",
       "source": "test_move_detector_testtemporalboardtracker",
-      "target": "test_move_detector_testtemporalboardtracker_test_rejects_legal_candidate_with_more_than_two_wrong_argmax_squares",
+      "target": "test_move_detector_testtemporalboardtracker_test_initializes_from_first_unreachable_frame_without_advancing_board",
       "confidence_score": 1.0
     },
     {

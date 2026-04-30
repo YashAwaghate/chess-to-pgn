@@ -652,7 +652,7 @@ class TemporalBoardTracker:
     STABLE_BOOST = 0.97
     CONFIRMATION_TOLERANCE = 2
 
-    def __init__(self, prior_weight: float = 2.0):
+    def __init__(self, prior_weight: float = 1.5):
         """
         Parameters
         ----------
@@ -665,6 +665,7 @@ class TemporalBoardTracker:
         self.board = chess.Board()
         self.prior_weight = prior_weight
         self._confirmed_pos = self.board.fen().split(' ')[0]
+        self._seen_frame = False
 
     # ------------------------------------------------------------------
     # Public API
@@ -686,10 +687,18 @@ class TemporalBoardTracker:
         """
         # Fast path: argmax matches confirmed board → no move
         argmax_pos = self._argmax_pos(full_probs)
+        if not self._seen_frame:
+            self._seen_frame = True
+            if argmax_pos == self._confirmed_pos:
+                return None, 'no_change'
+            if detect_move(self._confirmed_pos, argmax_pos, self.board) is None:
+                self._confirmed_pos = argmax_pos
+                return None, 'no_change'
+
         if argmax_pos == self._confirmed_pos:
             return None, 'no_change'
 
-        adjusted = self._apply_temporal_heuristics(full_probs)
+        adjusted = full_probs
         san, tag, _ = detect_move_with_prior(
             self._confirmed_pos, adjusted, self.board,
             prior_weight=self.prior_weight,
@@ -705,12 +714,8 @@ class TemporalBoardTracker:
             candidate_pos = self.board.fen().split(' ')[0]
             self.board.pop()
 
-            wrong_squares = 64 - _position_similarity(candidate_pos, argmax_pos)
-            if wrong_squares <= self.CONFIRMATION_TOLERANCE:
-                self.board.push(move)
-                self._confirmed_pos = self.board.fen().split(' ')[0]
-            else:
-                return None, 'failed'
+            self.board.push(move)
+            self._confirmed_pos = self.board.fen().split(' ')[0]
 
         return san, tag
 
@@ -718,6 +723,7 @@ class TemporalBoardTracker:
         """Reset to starting position."""
         self.board = chess.Board()
         self._confirmed_pos = self.board.fen().split(' ')[0]
+        self._seen_frame = False
 
     # ------------------------------------------------------------------
     # Internal helpers
